@@ -2,7 +2,7 @@
 // Estratégia: cache-first com fallback para network. Dados ficam em localStorage/IndexedDB,
 // não passam pelo cache do SW.
 
-const CACHE_VERSION = 'coag-v1';
+const CACHE_VERSION = 'coag-v2';
 const APP_SHELL = [
   './',
   './index.html',
