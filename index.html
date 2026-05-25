@@ -1,0 +1,2315 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COAG/DPE-RN — Distribuição de Demandas</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f4332">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="COAG/DPE-RN">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root {
+    --verde-dpe: #1f4332;
+    --verde-claro: #2d5440;
+    --verde-tenue: #e8efe9;
+    --creme: #faf8f3;
+    --papel: #fefdf8;
+    --tinta: #1a1a1a;
+    --tinta-suave: #4a4a4a;
+    --tinta-fraca: #888;
+    --borda: #d4d0c4;
+    --borda-forte: #a8a298;
+    --amarelo-alerta: #c9920f;
+    --vermelho-alerta: #a03028;
+    --azul-info: #2b5a87;
+    --sombra: 0 1px 2px rgba(0,0,0,0.05);
+    --sombra-forte: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    background: var(--creme);
+    color: var(--tinta);
+    line-height: 1.45;
+  }
+  header {
+    background: var(--verde-dpe);
+    color: var(--papel);
+    padding: 1rem 1.5rem 0;
+    border-bottom: 3px double var(--verde-claro);
+  }
+  header .titulo {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+  header h1 {
+    font-size: 1.15rem;
+    font-weight: normal;
+    letter-spacing: 0.04em;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  header h1 strong {
+    font-weight: bold;
+    letter-spacing: 0.06em;
+  }
+  header .subtitulo {
+    font-size: 0.8rem;
+    color: #c9d4cc;
+    font-style: italic;
+  }
+  nav.tabs {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+  }
+  nav.tabs button {
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #c9d4cc;
+    padding: 0.6rem 1rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  nav.tabs button:hover { color: var(--papel); }
+  nav.tabs button.active {
+    color: var(--papel);
+    border-bottom-color: var(--amarelo-alerta);
+    font-weight: bold;
+  }
+  main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem;
+  }
+  section.tab-pane { display: none; }
+  section.tab-pane.active { display: block; }
+  h2 {
+    font-size: 1.1rem;
+    color: var(--verde-dpe);
+    border-bottom: 1px solid var(--borda);
+    padding-bottom: 0.4rem;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    letter-spacing: 0.03em;
+  }
+  h3 {
+    font-size: 0.95rem;
+    color: var(--verde-claro);
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+  /* Cards do Dashboard */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .card {
+    background: var(--papel);
+    border: 1px solid var(--borda);
+    border-left: 4px solid var(--verde-claro);
+    padding: 0.9rem 1rem;
+    box-shadow: var(--sombra);
+  }
+  .card .rotulo {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--tinta-suave);
+    margin-bottom: 0.3rem;
+  }
+  .card .valor {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: var(--verde-dpe);
+    line-height: 1;
+  }
+  .card .detalhe {
+    font-size: 0.8rem;
+    color: var(--tinta-suave);
+    margin-top: 0.25rem;
+    font-style: italic;
+  }
+  .card.alerta { border-left-color: var(--vermelho-alerta); }
+  .card.alerta .valor { color: var(--vermelho-alerta); }
+  .card.atencao { border-left-color: var(--amarelo-alerta); }
+  .card.atencao .valor { color: var(--amarelo-alerta); }
+
+  /* Barras de carga */
+  .barras-carga {
+    background: var(--papel);
+    border: 1px solid var(--borda);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .barra-fiscal {
+    display: grid;
+    grid-template-columns: 110px 1fr 70px;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .barra-fiscal .nome {
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  .barra-fiscal .nome small {
+    display: block;
+    font-weight: normal;
+    font-style: italic;
+    font-size: 0.7rem;
+    color: var(--tinta-fraca);
+  }
+  .barra-wrapper {
+    background: var(--verde-tenue);
+    height: 22px;
+    position: relative;
+    border: 1px solid var(--borda);
+  }
+  .barra-preenchida {
+    height: 100%;
+    background: var(--verde-claro);
+    transition: width 0.3s;
+    position: relative;
+  }
+  .barra-preenchida.atencao { background: var(--amarelo-alerta); }
+  .barra-preenchida.alerta { background: var(--vermelho-alerta); }
+  .barra-limiar {
+    position: absolute;
+    top: -2px;
+    height: 26px;
+    width: 2px;
+    background: var(--vermelho-alerta);
+    z-index: 2;
+  }
+  .barra-fiscal .pct {
+    font-size: 0.85rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Tabelas */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--papel);
+    font-size: 0.85rem;
+  }
+  table th, table td {
+    text-align: left;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--borda);
+    vertical-align: top;
+  }
+  table th {
+    background: var(--verde-tenue);
+    color: var(--verde-dpe);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 2px solid var(--borda-forte);
+    white-space: nowrap;
+  }
+  table tr:hover { background: var(--verde-tenue); }
+  table td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.7rem;
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    border: 1px solid;
+    background: var(--papel);
+  }
+  .badge.n1 { color: #4a7050; border-color: #4a7050; }
+  .badge.n2 { color: #6b6020; border-color: #6b6020; }
+  .badge.n3 { color: #8a5028; border-color: #8a5028; }
+  .badge.n4 { color: var(--vermelho-alerta); border-color: var(--vermelho-alerta); }
+  .badge.status-elaboracao { background: #e8efe9; color: var(--verde-dpe); border-color: var(--verde-claro); }
+  .badge.status-revisao { background: #fdf4d9; color: #6b6020; border-color: var(--amarelo-alerta); }
+  .badge.status-aprovacao { background: #d9e5f0; color: var(--azul-info); border-color: var(--azul-info); }
+  .badge.status-aprovado { background: #d9ecdf; color: #2a6a44; border-color: #2a6a44; }
+  .badge.status-arquivado { background: #ebe7dd; color: #6a6457; border-color: #a8a298; }
+  .badge.status-bloqueado { background: #f0e0dd; color: var(--vermelho-alerta); border-color: var(--vermelho-alerta); }
+  .badge.tipo {
+    background: var(--creme);
+    color: var(--tinta-suave);
+    border-color: var(--borda-forte);
+    font-style: italic;
+  }
+  /* Formulários */
+  form.painel-form {
+    background: var(--papel);
+    border: 1px solid var(--borda);
+    padding: 1.25rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+  form.painel-form .full { grid-column: 1 / -1; }
+  form.painel-form .acoes {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    border-top: 1px solid var(--borda);
+    padding-top: 1rem;
+  }
+  label {
+    display: block;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--tinta-suave);
+    margin-bottom: 0.25rem;
+    font-weight: bold;
+  }
+  label small {
+    display: block;
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: 0;
+    font-style: italic;
+    color: var(--tinta-fraca);
+    margin-top: 0.1rem;
+  }
+  input[type="text"], input[type="number"], select, textarea {
+    width: 100%;
+    padding: 0.45rem 0.55rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    border: 1px solid var(--borda-forte);
+    background: var(--creme);
+    color: var(--tinta);
+  }
+  textarea { min-height: 60px; resize: vertical; font-family: inherit; }
+  input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--verde-claro);
+    outline-offset: -2px;
+  }
+  button.btn {
+    background: var(--verde-dpe);
+    color: var(--papel);
+    border: 1px solid var(--verde-dpe);
+    padding: 0.5rem 1.2rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    text-transform: uppercase;
+  }
+  button.btn:hover { background: var(--verde-claro); }
+  button.btn.secundario {
+    background: var(--papel);
+    color: var(--verde-dpe);
+  }
+  button.btn.secundario:hover { background: var(--verde-tenue); }
+  button.btn.perigo {
+    background: var(--vermelho-alerta);
+    border-color: var(--vermelho-alerta);
+  }
+  button.btn.pequeno {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+  }
+  .resultado-distribuicao {
+    background: var(--verde-tenue);
+    border-left: 4px solid var(--verde-claro);
+    padding: 0.75rem 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+  }
+  .resultado-distribuicao strong { color: var(--verde-dpe); }
+  /* Filtros */
+  .filtros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    background: var(--papel);
+    border: 1px solid var(--borda);
+    padding: 0.75rem;
+    align-items: end;
+  }
+  .filtros > div { flex: 1; min-width: 150px; }
+  .filtros label { margin-bottom: 0.15rem; }
+  /* Filas de aprovação */
+  .fila-coluna {
+    background: var(--papel);
+    border: 1px solid var(--borda);
+    padding: 1rem;
+  }
+  .filas-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  @media (max-width: 800px) { .filas-grid { grid-template-columns: 1fr; } }
+  .fila-item {
+    border: 1px solid var(--borda);
+    border-left: 3px solid var(--verde-claro);
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.5rem;
+    background: var(--creme);
+    font-size: 0.85rem;
+  }
+  .fila-item.sla-amarelo { border-left-color: var(--amarelo-alerta); }
+  .fila-item.sla-vermelho { border-left-color: var(--vermelho-alerta); background: #fdf6f4; }
+  .fila-item .sla-info {
+    font-size: 0.75rem;
+    color: var(--tinta-suave);
+    margin-top: 0.3rem;
+    font-style: italic;
+  }
+  .fila-item .sla-info.vermelho { color: var(--vermelho-alerta); font-weight: bold; font-style: normal; }
+  .fila-item .acoes {
+    margin-top: 0.4rem;
+    display: flex;
+    gap: 0.5rem;
+  }
+  /* Matriz documentada */
+  .matriz-doc {
+    background: var(--papel);
+    border: 1px solid var(--borda);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .matriz-doc table { font-size: 0.8rem; }
+  .nota {
+    background: #fdf6dc;
+    border-left: 3px solid var(--amarelo-alerta);
+    padding: 0.6rem 0.8rem;
+    margin: 0.75rem 0;
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+  /* Modal de edição */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(20,20,20,0.55);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-overlay.aberto { display: flex; }
+  .modal {
+    background: var(--papel);
+    border: 1px solid var(--borda-forte);
+    max-width: 700px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 1.5rem;
+    box-shadow: var(--sombra-forte);
+  }
+  .modal h3 { margin-top: 0; }
+  .modal .acoes-modal {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+    border-top: 1px solid var(--borda);
+    padding-top: 1rem;
+  }
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    background: var(--verde-dpe);
+    color: var(--papel);
+    padding: 0.8rem 1.2rem;
+    border-left: 4px solid var(--amarelo-alerta);
+    box-shadow: var(--sombra-forte);
+    z-index: 200;
+    font-size: 0.9rem;
+    max-width: 360px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.25s;
+  }
+  .toast.visivel { opacity: 1; transform: translateY(0); }
+  .toast.erro { background: var(--vermelho-alerta); }
+  /* Tabela de fiscais SCT */
+  .legenda-config {
+    font-size: 0.8rem;
+    color: var(--tinta-suave);
+    font-style: italic;
+    margin-top: 0.5rem;
+  }
+  .config-grupo {
+    display: grid;
+    grid-template-columns: 1fr 100px;
+    gap: 0.5rem;
+    align-items: center;
+    max-width: 400px;
+    margin-bottom: 0.5rem;
+  }
+  .config-grupo label {
+    margin-bottom: 0;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: normal;
+  }
+  footer.rodape {
+    text-align: center;
+    color: var(--tinta-fraca);
+    font-size: 0.75rem;
+    padding: 2rem 1rem 1rem;
+    font-style: italic;
+  }
+  /* Banner de aviso */
+  .banner-aviso {
+    background: var(--vermelho-alerta);
+    color: var(--papel);
+    padding: 0.6rem 1.5rem;
+    text-align: center;
+    font-size: 0.85rem;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+  .banner-aviso.visivel { display: flex; }
+  .banner-aviso button {
+    background: var(--papel);
+    color: var(--vermelho-alerta);
+    border: none;
+    padding: 0.3rem 0.8rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .banner-aviso .fechar-banner {
+    background: transparent;
+    color: var(--papel);
+    border: 1px solid var(--papel);
+    padding: 0.2rem 0.5rem;
+  }
+  /* Status de proteção */
+  .status-protecao {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  @media (max-width: 700px) { .status-protecao { grid-template-columns: 1fr; } }
+  .status-item {
+    background: var(--papel);
+    border: 1px solid var(--borda);
+    border-left: 4px solid var(--verde-claro);
+    padding: 0.75rem 0.9rem;
+  }
+  .status-item.alerta { border-left-color: var(--vermelho-alerta); }
+  .status-item.atencao { border-left-color: var(--amarelo-alerta); }
+  .status-item .titulo-status {
+    font-weight: bold;
+    color: var(--verde-dpe);
+    font-size: 0.85rem;
+    margin-bottom: 0.2rem;
+  }
+  .status-item .desc-status {
+    font-size: 0.8rem;
+    color: var(--tinta-suave);
+    margin-bottom: 0.4rem;
+  }
+  .status-item .valor-status {
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+  }
+  .status-item .valor-status.ok { color: var(--verde-claro); font-weight: bold; }
+  .status-item .valor-status.warn { color: var(--vermelho-alerta); font-weight: bold; }
+  .lista-snapshots {
+    background: var(--creme);
+    border: 1px solid var(--borda);
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 0.5rem;
+  }
+  .lista-snapshots .snap-item {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--borda);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+  }
+  .lista-snapshots .snap-item:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="banner-aviso" id="banner-aviso">
+  <span id="banner-aviso-texto">Sem backup automático configurado. Risco de perda de dados em caso de limpeza do navegador.</span>
+  <button id="banner-aviso-acao">Configurar agora</button>
+  <button class="fechar-banner" id="banner-aviso-fechar">Dispensar</button>
+</div>
+<header>
+  <div class="titulo">
+    <h1><strong>COAG</strong> · Defensoria Pública do Estado do Rio Grande do Norte</h1>
+    <div class="subtitulo">Sistema de Distribuição de Demandas — v2.0</div>
+  </div>
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="processos">Processos</button>
+    <button class="tab-btn" data-tab="novo">Novo Processo</button>
+    <button class="tab-btn" data-tab="filas">Filas de Aprovação</button>
+    <button class="tab-btn" data-tab="matriz">Matriz SCT</button>
+    <button class="tab-btn" data-tab="config">Configuração</button>
+    <button class="tab-btn" data-tab="backup">Backup / Importar</button>
+  </nav>
+</header>
+
+<main>
+  <!-- DASHBOARD -->
+  <section class="tab-pane active" id="tab-dashboard">
+    <h2>Visão Geral da Carga</h2>
+    <div class="cards-grid" id="cards-resumo"></div>
+
+    <h3>Distribuição de SCT por Fiscal (carga ativa, exclui bloqueados externos)</h3>
+    <div class="barras-carga" id="barras-carga"></div>
+
+    <h3>Estado de Matheus</h3>
+    <div class="cards-grid" id="estado-matheus"></div>
+  </section>
+
+  <!-- PROCESSOS -->
+  <section class="tab-pane" id="tab-processos">
+    <h2>Processos Cadastrados</h2>
+    <div class="filtros">
+      <div>
+        <label>Filtrar por fiscal</label>
+        <select id="filtro-fiscal">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div>
+        <label>Filtrar por nível</label>
+        <select id="filtro-nivel">
+          <option value="">Todos</option>
+          <option value="N1">N1 — Baixo</option>
+          <option value="N2">N2 — Médio</option>
+          <option value="N3">N3 — Alto</option>
+          <option value="N4">N4 — Crítico</option>
+        </select>
+      </div>
+      <div>
+        <label>Filtrar por status</label>
+        <select id="filtro-status">
+          <option value="">Todos</option>
+          <option value="elaboracao">Em elaboração</option>
+          <option value="revisao_matheus">Revisão (Matheus)</option>
+          <option value="aprovacao_kerolaine">Aprovação (Kerolaine)</option>
+          <option value="aprovado">Aprovado</option>
+          <option value="arquivado">Arquivado</option>
+          <option value="bloqueado_externo">Bloqueado externo</option>
+        </select>
+      </div>
+      <div>
+        <label>Filtrar por tipo</label>
+        <select id="filtro-tipo">
+          <option value="">Todos</option>
+          <option value="completo">ETP+TR+MR completo</option>
+          <option value="apenas_tr">Apenas TR</option>
+          <option value="aditivo">Aditivo/Apostilamento</option>
+        </select>
+      </div>
+      <div>
+        <label>Buscar</label>
+        <input type="text" id="filtro-busca" placeholder="SEI ou objeto…">
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="tabela-processos">
+        <thead>
+          <tr>
+            <th>SEI</th>
+            <th>Objeto</th>
+            <th>Tipo</th>
+            <th>Nível</th>
+            <th class="num">SCT</th>
+            <th>Fiscal</th>
+            <th>Status</th>
+            <th>Aguarda</th>
+            <th>Atualizado</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- NOVO PROCESSO -->
+  <section class="tab-pane" id="tab-novo">
+    <h2>Cadastrar Novo Processo</h2>
+    <form class="painel-form" id="form-novo" onsubmit="return false;">
+      <div>
+        <label>Nº SEI <small>identificador do processo no SEI</small></label>
+        <input type="text" id="campo-sei" placeholder="000110000061.000000/2026-00" required>
+      </div>
+      <div>
+        <label>Objeto <small>descrição sintética</small></label>
+        <input type="text" id="campo-objeto" placeholder="Ex.: Serviço de limpeza e conservação" required>
+      </div>
+
+      <div class="full">
+        <label>Tipo de demanda <small>determina o modificador de carga aplicado ao SCT base</small></label>
+        <select id="campo-tipo">
+          <option value="completo">ETP+TR+Mapa de Risco completo (×1,0) — fluxo: elaboração → revisão → aprovação</option>
+          <option value="apenas_tr">Apenas TR — ETP feito por setor técnico (×0,6) — fluxo: elaboração → revisão → aprovação</option>
+          <option value="aditivo">Aditivo / Apostilamento — formalização direta (SCT fixo = 0,3) — sem revisão nem aprovação</option>
+        </select>
+      </div>
+
+      <div>
+        <label>A. Natureza do objeto <small>peso dominante 0–5</small></label>
+        <select id="campo-A">
+          <option value="0">0 — Bens comuns (papel, café, etc.)</option>
+          <option value="2">2 — Serviço simples não contínuo</option>
+          <option value="3">3 — Serviço contínuo s/ dedicação exclusiva</option>
+          <option value="4">4 — TI grande porte / engenharia / obra</option>
+          <option value="5">5 — Dedicação exclusiva de MO (ASG, vigilância, motorista, recepcionista, TI terceirizada)</option>
+        </select>
+      </div>
+      <div>
+        <label>B. Escopo do instrumento <small>0–2</small></label>
+        <select id="campo-B">
+          <option value="0">0 — Aquisição administrativa simples</option>
+          <option value="1">1 — TR padrão</option>
+          <option value="2">2 — TR com encargos complexos / acessórios</option>
+        </select>
+      </div>
+      <div>
+        <label>C. Apoio externo necessário <small>0–1</small></label>
+        <select id="campo-C">
+          <option value="0">0 — Nenhum apoio externo</option>
+          <option value="1">1 — Um ou mais setores (CTI, CEAP, CCSC)</option>
+        </select>
+      </div>
+      <div>
+        <label>D. Prazo <small>0–1</small></label>
+        <select id="campo-D">
+          <option value="0">0 — Regular (&gt; 20 dias úteis)</option>
+          <option value="1">1 — Urgente (≤ 20 dias úteis)</option>
+        </select>
+      </div>
+      <div>
+        <label>E. Valor estimado <small>0–1</small></label>
+        <select id="campo-E">
+          <option value="0">0 — Até R$ 100 mil</option>
+          <option value="1">1 — Acima de R$ 100 mil</option>
+        </select>
+      </div>
+
+      <div class="full">
+        <label>Pré-cálculo</label>
+        <div class="resultado-distribuicao" id="precalculo">
+          Preencha as dimensões para visualizar o cálculo.
+        </div>
+      </div>
+
+      <div class="full">
+        <label>Observações <small>contexto adicional, links, despachos relacionados</small></label>
+        <textarea id="campo-obs" placeholder="Opcional"></textarea>
+      </div>
+
+      <div class="acoes">
+        <button class="btn" id="btn-distribuir">Calcular e Distribuir</button>
+        <button class="btn secundario" id="btn-limpar">Limpar</button>
+      </div>
+      <div class="full" id="painel-distribuicao" style="display:none;"></div>
+    </form>
+  </section>
+
+  <!-- FILAS -->
+  <section class="tab-pane" id="tab-filas">
+    <h2>Filas de Aprovação</h2>
+    <p class="legenda-config">SLA padrão: <span id="legenda-sla"></span> dias úteis em cada fila. Item vermelho = SLA estourado; amarelo = no último dia. <strong>Aditivos / apostilamentos não aparecem aqui</strong> — concluem direto da elaboração via botão "Concluir" na aba Processos.</p>
+    <div class="filas-grid">
+      <div class="fila-coluna">
+        <h3>Revisão — Matheus</h3>
+        <div id="fila-matheus"></div>
+      </div>
+      <div class="fila-coluna">
+        <h3>Aprovação — Kerolaine</h3>
+        <div id="fila-kerolaine"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MATRIZ -->
+  <section class="tab-pane" id="tab-matriz">
+    <h2>Matriz de Complexidade (SCT)</h2>
+    <div class="matriz-doc">
+      <h3>Dimensões pontuáveis</h3>
+      <table>
+        <thead>
+          <tr><th>Dim.</th><th>Fator</th><th>Faixa</th><th>Critério</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>A</strong></td><td>Natureza do objeto</td><td>0–5</td><td>Dedicação exclusiva MO=5 · TI grande/engenharia=4 · Contínuo s/ ded. exclusiva=3 · Simples=2 · Bens comuns=0</td></tr>
+          <tr><td><strong>B</strong></td><td>Escopo do instrumento</td><td>0–2</td><td>Aquisição administrativa=0 · TR padrão=1 · TR com encargos complexos=2</td></tr>
+          <tr><td><strong>C</strong></td><td>Apoio externo</td><td>0–1</td><td>Nenhum=0 · CTI/CEAP/CCSC (qualquer)=1</td></tr>
+          <tr><td><strong>D</strong></td><td>Prazo</td><td>0–1</td><td>Regular=0 · Urgente=1</td></tr>
+          <tr><td><strong>E</strong></td><td>Valor estimado</td><td>0–1</td><td>Até R$100k=0 · Acima=1</td></tr>
+        </tbody>
+      </table>
+      <p class="legenda-config">Score = A + B + C + D + E (máximo 10)</p>
+
+      <h3>Conversão Score → Nível → SCT base</h3>
+      <table>
+        <thead>
+          <tr><th>Nível</th><th>Faixa de score</th><th>SCT base</th><th>Interpretação</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="badge n1">N1</span></td><td>0–2 pts</td><td>1</td><td>Baixa carga de gestão</td></tr>
+          <tr><td><span class="badge n2">N2</span></td><td>3–5 pts</td><td>2</td><td>Média</td></tr>
+          <tr><td><span class="badge n3">N3</span></td><td>6–8 pts</td><td>4</td><td>Alta — exige planejamento dedicado</td></tr>
+          <tr><td><span class="badge n4">N4</span></td><td>9–10 pts</td><td>8</td><td>Crítica — escala exponencial preservada</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Modificador por tipo de demanda</h3>
+      <table>
+        <thead>
+          <tr><th>Tipo</th><th>Modificador</th><th>Aplicação</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>ETP + TR + Mapa de Risco (completo)</td><td>×1,0</td><td>Padrão para objetos planejados integralmente pela COAG</td></tr>
+          <tr><td>Apenas TR (ETP feito pelo setor técnico)</td><td>×0,6</td><td>Objetos de alta especificidade técnica (TI especializada, equipamentos médicos, obras) em que o ETP é elaborado por área-fim; COAG faz TR, MR e adequações</td></tr>
+          <tr><td>Aditivo / Apostilamento</td><td>SCT fixo = 0,3</td><td>Chega à COAG com minuta pronta (setor técnico) e parecer da AJ. O servidor designado é responsável integral pela formalização — <strong>não passa por revisão nem por aprovação</strong>. OC e OS são atribuição exclusiva da Coordenadora e não entram na distribuição.</td></tr>
+        </tbody>
+      </table>
+      <p class="legenda-config">SCT final = SCT base × modificador (arredondado a 1 casa decimal)</p>
+
+      <h3>Algoritmo de distribuição</h3>
+      <ol style="font-size:0.9rem;">
+        <li>Soma de SCT ativa por fiscal primário (Liza, Thiago, Lucas) — exclui processos em status <em>bloqueado externo</em>, <em>aprovado</em> e <em>arquivado</em>.</li>
+        <li>Atribui ao fiscal com menor Σ SCT.</li>
+        <li>Empate → desempate por rotação: vence quem recebeu o último processo há mais tempo (ou nunca recebeu).</li>
+        <li>Se todos os primários ≥ limiar (configurável, padrão 12 SCT) → Matheus entra como suplente de elaboração.</li>
+        <li><strong>Completo / Apenas TR</strong>: TR concluído → fila Matheus (revisão, SLA configurável) → fila Kerolaine (aprovação, SLA configurável) → aprovado.</li>
+        <li><strong>Aditivo / Apostilamento</strong>: elaboração → concluído. Fluxo direto, sem revisão Matheus nem aprovação Kerolaine — o servidor designado é responsável integral pela formalização.</li>
+        <li><strong>Arquivado</strong>: encerramento sem conclusão normal (perda de objeto, oportunidade fracassada, sobrestamento permanente, cancelamento). Não soma carga; preservado para auditoria.</li>
+      </ol>
+
+      <div class="nota">
+        <strong>Ressalvas operacionais:</strong> a planilha histórica registra resultado, não carga real — o sistema só reflete a realidade se alimentado prospectivamente. A pontuação dos processos pré-existentes é estimativa: revise os scores antes de operar produtivamente. O gargalo de aprovação exclusiva da coordenadoria é tornado visível pelo SLA, mas não resolvido pelo sistema. <strong>localStorage é por navegador</strong> — para uso concorrente em rede é necessário backend (Sheets API, SQLite+servidor, Airtable, Notion).
+      </div>
+    </div>
+  </section>
+
+  <!-- CONFIGURAÇÃO -->
+  <section class="tab-pane" id="tab-config">
+    <h2>Configuração</h2>
+    <div class="matriz-doc">
+      <h3>Parâmetros do algoritmo</h3>
+      <div class="config-grupo">
+        <label>Limiar de suplência Matheus (SCT)</label>
+        <input type="number" id="cfg-limiar" min="1" max="50" step="1">
+      </div>
+      <div class="config-grupo">
+        <label>SLA revisão Matheus (dias úteis)</label>
+        <input type="number" id="cfg-sla-matheus" min="1" max="10" step="1">
+      </div>
+      <div class="config-grupo">
+        <label>SLA aprovação Kerolaine (dias úteis)</label>
+        <input type="number" id="cfg-sla-kerolaine" min="1" max="10" step="1">
+      </div>
+      <button class="btn" id="btn-salvar-config">Salvar configuração</button>
+
+      <h3>Fiscais primários (pool de elaboração)</h3>
+      <p class="legenda-config">A ordem é usada apenas como segundo desempate, depois da rotação por timestamp. Padrão: alfabético.</p>
+      <ul id="lista-fiscais" style="font-size:0.9rem;"></ul>
+
+      <h3>Prioridade de Matheus</h3>
+      <p class="legenda-config">
+        Quando Matheus está em modo suplente de elaboração <em>e</em> existe TR na sua fila de revisão com SLA ≥ 2 dias, o sistema sinaliza que a revisão tem prioridade. A regra é informativa — não bloqueia ações.
+      </p>
+    </div>
+  </section>
+
+  <!-- BACKUP -->
+  <section class="tab-pane" id="tab-backup">
+    <h2>Proteções de Dados e Backup</h2>
+
+    <h3>Status das proteções</h3>
+    <div class="status-protecao">
+      <div class="status-item" id="status-persist">
+        <div class="titulo-status">Camada 1 — Persistência declarada</div>
+        <div class="desc-status">Solicita ao navegador que o armazenamento não seja apagado em limpezas automáticas de cache.</div>
+        <div class="valor-status" id="status-persist-valor">Verificando…</div>
+        <button class="btn pequeno secundario" id="btn-persist">Solicitar persistência</button>
+      </div>
+      <div class="status-item" id="status-snapshot">
+        <div class="titulo-status">Camada 2 — Snapshots rotativos</div>
+        <div class="desc-status">Mantém cópias diárias dos últimos 7 dias no próprio navegador. Permite reverter alterações acidentais.</div>
+        <div class="valor-status" id="status-snapshot-valor">Verificando…</div>
+        <button class="btn pequeno secundario" id="btn-ver-snapshots">Ver snapshots</button>
+      </div>
+      <div class="status-item" id="status-pasta">
+        <div class="titulo-status">Camada 3 — Backup automático em pasta</div>
+        <div class="desc-status">Salva um JSON em pasta do seu computador a cada modificação. Único método que sobrevive a limpeza total do navegador. Funciona apenas em Chrome / Edge / Opera.</div>
+        <div class="valor-status" id="status-pasta-valor">Verificando…</div>
+        <button class="btn pequeno" id="btn-configurar-pasta">Configurar pasta</button>
+        <button class="btn pequeno secundario" id="btn-backup-agora" style="display:none;">Salvar agora</button>
+        <button class="btn pequeno secundario" id="btn-desativar-pasta" style="display:none;">Desativar</button>
+      </div>
+      <div class="status-item" id="status-quota">
+        <div class="titulo-status">Camada 4 — Quota de armazenamento</div>
+        <div class="desc-status">Mostra quanto espaço o navegador está usando. Se chegar próximo do limite, salvar falhará silenciosamente.</div>
+        <div class="valor-status" id="status-quota-valor">Verificando…</div>
+      </div>
+    </div>
+
+    <div class="lista-snapshots" id="lista-snapshots" style="display:none;"></div>
+
+    <div class="matriz-doc">
+      <h3>Exportar manualmente</h3>
+      <p class="legenda-config">JSON contém estado completo (processos + configuração). CSV é apenas a lista de processos.</p>
+      <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+        <button class="btn" id="btn-export-json">Exportar JSON</button>
+        <button class="btn secundario" id="btn-export-csv">Exportar CSV</button>
+      </div>
+
+      <h3>Importar JSON</h3>
+      <p class="legenda-config">Cuidado: a importação substitui completamente o estado atual. Faça backup antes.</p>
+      <input type="file" id="input-import" accept=".json">
+      <button class="btn secundario" id="btn-import" style="margin-left:0.5rem;">Importar arquivo selecionado</button>
+
+      <h3>Recarregar snapshot da planilha 2026</h3>
+      <p class="legenda-config">Substitui o estado atual pelos 36 processos extraídos da planilha 2026 (05/05/2026). Use se quiser descartar alterações locais e voltar ao snapshot oficial. Faça backup antes.</p>
+      <button class="btn perigo" id="btn-recarregar-seed">Recarregar planilha 2026</button>
+
+      <h3>Carregar dados de exemplo</h3>
+      <p class="legenda-config">Insere 5 processos demonstrativos para teste do sistema. Não substitui dados existentes — adiciona.</p>
+      <button class="btn secundario" id="btn-exemplo">Inserir exemplos</button>
+
+      <h3>Resetar dados</h3>
+      <p class="legenda-config">Apaga todos os processos e restaura a configuração padrão. Irreversível.</p>
+      <button class="btn perigo" id="btn-reset">Resetar tudo</button>
+    </div>
+  </section>
+</main>
+
+<!-- Modal de edição -->
+<div class="modal-overlay" id="modal-edicao">
+  <div class="modal">
+    <h3 id="modal-titulo">Editar processo</h3>
+    <div id="modal-conteudo"></div>
+    <div class="acoes-modal">
+      <button class="btn secundario" id="modal-cancelar">Cancelar</button>
+      <button class="btn" id="modal-salvar">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer class="rodape">
+  COAG/DPE-RN · Sistema interno de distribuição · Dados armazenados localmente (localStorage)
+</footer>
+
+<script>
+'use strict';
+
+// ============================================================================
+//  ESTADO E CONSTANTES
+// ============================================================================
+const FISCAIS_PRIMARIOS = ['Liza', 'Lucas', 'Thiago']; // alfabético
+const MATHEUS = 'Matheus';
+const KEROLAINE = 'Kerolaine';
+const STORAGE_KEY = 'coag_distribuicao_v2';
+
+const CONFIG_PADRAO = {
+  limiarSuplencia: 12,
+  slaMatheus: 2,
+  slaKerolaine: 2
+};
+
+const TIPOS_DEMANDA = {
+  completo:   { rotulo: 'ETP+TR+MR',     modificador: 1.0,  sctFixo: null },
+  apenas_tr:  { rotulo: 'Só TR',          modificador: 0.6,  sctFixo: null },
+  aditivo:    { rotulo: 'Aditivo/Apost.', modificador: null, sctFixo: 0.3 }
+};
+
+const STATUS_ROTULOS = {
+  elaboracao:           { texto: 'Em elaboração',         classe: 'status-elaboracao' },
+  revisao_matheus:      { texto: 'Revisão (Matheus)',     classe: 'status-revisao' },
+  aprovacao_kerolaine:  { texto: 'Aprovação (Kerolaine)', classe: 'status-aprovacao' },
+  aprovado:             { texto: 'Aprovado',              classe: 'status-aprovado' },
+  arquivado:            { texto: 'Arquivado',             classe: 'status-arquivado' },
+  bloqueado_externo:    { texto: 'Bloqueado externo',     classe: 'status-bloqueado' }
+};
+
+const NIVEIS = [
+  { codigo: 'N1', max: 2,  sct: 1 },
+  { codigo: 'N2', max: 5,  sct: 2 },
+  { codigo: 'N3', max: 8,  sct: 4 },
+  { codigo: 'N4', max: 10, sct: 8 }
+];
+
+let estado = {
+  processos: [],
+  config: { ...CONFIG_PADRAO }
+};
+
+// ============================================================================
+//  SEED DA PLANILHA 2026 (snapshot 05/05/2026)
+//  Dimensões já convertidas para a matriz v2 (A 0-5, C 0-1).
+//  Tipo "apenas_tr" aplicado quando ETP é claramente de domínio CTI/CEAP/setor técnico.
+//  Status "bloqueado_externo" quando o setor atual da planilha não é COAG.
+// ============================================================================
+const SEED_PROCESSOS_2026 = [
+  // CONTRATAÇÕES FINALIZADAS 2026 (histórico institucional — aprovados)
+  {sei:'06410002.000592/2025-61', objeto:'Serviços de RECEPCIONISTAS — Contrato 02/2026', fiscal:'Matheus', tipo:'completo', A:5,B:1,C:0,D:0,E:1, status:'aprovado', aguarda:null},
+  {sei:'000110000068.000005/2026-49', objeto:'Capacitação online — Reforma Tributária — Inexigibilidade 01/2026', fiscal:'Lucas', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'aprovado', aguarda:null},
+  {sei:'06410002.003597/2024-64', objeto:'Fotografia, filmagem e transmissão de eventos — PE 21/2025 / ARP 02-04/2026', fiscal:'Liza', tipo:'completo', A:3,B:1,C:1,D:0,E:0, status:'aprovado', aguarda:null},
+  {sei:'000110000071.000003/2025-10', objeto:'Manutenção predial — PE 23/2025 / Contratos 05 e 06/2026', fiscal:'Matheus', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'aprovado', aguarda:null},
+  {sei:'06410002.000093/2025-73', objeto:'Desinsetização — Contrato 07/2026', fiscal:'Thiago', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'aprovado', aguarda:null},
+  {sei:'000110000061.000024/2026-35', objeto:'Evento — 9º Encontro Grandes Nomes em Compras — Inexigibilidade 03/2026', fiscal:'Matheus', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'aprovado', aguarda:null},
+  {sei:'000110000060.000157/2025-31', objeto:'Contratação de ferramenta de IA — Inexigibilidade 02/2026 / Contrato 09/2026', fiscal:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'aprovado', aguarda:null},
+  // ARQUIVADOS em 2026 (sem conclusão normal)
+  {sei:'06410002.000901/2025-01', objeto:'Fornecimento de licenças de segurança (firewall) — Arquivado em 29/01/2026', fiscal:null, tipo:'apenas_tr', A:4,B:1,C:1,D:1,E:1, status:'arquivado', aguarda:null},
+  {sei:'000110000061.000018/2026-88', objeto:'Limpeza Sede via Contrata+Brasil — Oportunidade fracassada / arquivado por baixa prioridade', fiscal:null, tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'arquivado', aguarda:null},
+  {sei:'06410002.000599/2025-82', objeto:'Aquisição de pontos eletrônicos — Arquivado por perda do objeto (CTI desenvolveu sistema próprio)', fiscal:'Thiago', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'arquivado', aguarda:null},
+  {sei:'06410002.000559/2025-31', objeto:'Locação de imóvel — Nísia Floresta — SOBRESTADO até 11/11/2026', fiscal:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'arquivado', aguarda:null},
+  // EM FASE DE LICITAÇÃO
+  {sei:'06410002.001739/2024-59', objeto:'Locação de imóvel — São José do Campestre', fiscal:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'06410002.005279/2024-38', objeto:'Aquisição de mobiliário — ARPs (parcialmente adjudicado)', fiscal:'Thiago', tipo:'completo', A:0,B:1,C:0,D:0,E:1, status:'bloqueado_externo', aguarda:'CL'},
+  {sei:'06410018.001498/2024-79', objeto:'Locação de imóvel — Currais Novos', fiscal:'Lucas', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'AJ'},
+  {sei:'06410018.000268/2024-92', objeto:'Aquisição de bandeiras', fiscal:'Lucas', tipo:'completo', A:0,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'CL'},
+  {sei:'06410002.003405/2024-10', objeto:'Aquisição de trocador de fraldas', fiscal:'Thiago', tipo:'completo', A:0,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'06410002.003519/2024-60', objeto:'Confecção de carteiras de identidade e porta-documento', fiscal:'Liza', tipo:'completo', A:2,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'AJ'},
+  {sei:'000110000063.000019/2025-21', objeto:'Equipe terceirizada de TI (contrato atual vence 22/06)', fiscal:'Liza', tipo:'apenas_tr', A:5,B:2,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'AJ'},
+  // EM TRÂMITE PARA LICITAÇÃO
+  {sei:'06410005.002513/2024-45', objeto:'Aquisição de Servidor + armazenamento', fiscal:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'},
+  {sei:'000110000065.000006/2025-32', objeto:'Serviços de multicloud (Nuvem)', fiscal:'Thiago', tipo:'apenas_tr', A:4,B:2,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'000110000076.000020/2025-15', objeto:'Licenças Microsoft Office (Contrato 19/2026)', fiscal:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'},
+  {sei:'06410018.001976/2024-41', objeto:'Cortinas persianas — retificação do TR', fiscal:'Thiago', tipo:'completo', A:0,B:1,C:1,D:0,E:0, status:'elaboracao', aguarda:null},
+  {sei:'06410018.001400/2024-83', objeto:'Locação de imóvel — Pendências', fiscal:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'06410018.000295/2024-65', objeto:'Manutenção de equipamentos (microondas, cafeteira, liquidificador)', fiscal:'Lucas', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'000110000062.000045/2025-60', objeto:'Chamamento público — Cooperativa de Materiais Recicláveis', fiscal:'Lucas', tipo:'completo', A:3,B:2,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'06410018.001500/2024-18', objeto:'Locação de imóvel — Florânia', fiscal:'Lucas', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'000110000061.000007/2026-06', objeto:'Serviços de ASG c/ acúmulo de copeiragem e sob demanda', fiscal:'Lucas', tipo:'completo', A:5,B:2,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'000110000070.000009/2026-88', objeto:'Adesão à plataforma eletrônica de Leilão', fiscal:'Thiago', tipo:'completo', A:3,B:2,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  // COAG (em elaboração ou em revisão)
+  {sei:'000110000066.000005/2025-88', objeto:'Alimentação preparada — Natal e RM', fiscal:'Liza', tipo:'completo', A:3,B:1,C:0,D:0,E:1, status:'revisao_matheus', aguarda:null},
+  {sei:'000110000061.000022/2026-46', objeto:'Serviços de psicologia', fiscal:'Thiago', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'000110000066.000001/2026-81', objeto:'Estruturação do auditório', fiscal:'Lucas', tipo:'completo', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CCSC'},
+  {sei:'06410018.000560/2024-13', objeto:'Locação de imóvel — Parelhas (Chamamento 02/2026)', fiscal:'Matheus', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'elaboracao', aguarda:null},
+  {sei:'000110000063.000004/2026-44', objeto:'Antivírus — contrato atual vence 08/2026', fiscal:'Liza', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'},
+  {sei:'000110000061.000021/2026-00', objeto:'Locação de espaço para eventos (Comissão multifuncional)', fiscal:'Lucas', tipo:'completo', A:3,B:1,C:0,D:0,E:1, status:'elaboracao', aguarda:null},
+  {sei:'000110000061.000015/2025-63', objeto:'Manutenção de detector de metal', fiscal:'Liza', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'elaboracao', aguarda:null},
+  {sei:'SEM-SEI-ELEVADORES', objeto:'Manutenção de elevadores (sem SEI atribuído)', fiscal:null, tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'elaboracao', aguarda:null},
+  {sei:'000110000061.000027/2026-79', objeto:'Serviços terceirizados de vigilância armada', fiscal:'Liza', tipo:'completo', A:5,B:2,C:1,D:0,E:1, status:'elaboracao', aguarda:null},
+  // ETP — em fase de estudo técnico preliminar
+  {sei:'06410002.003917/2024-86', objeto:'Elaboração e atualização de LTCAT', fiscal:null, tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'06410002.005555/2024-68', objeto:'Locação de imóvel — Sede Administrativa', fiscal:null, tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'000110000061.000002/2025-94', objeto:'Aquisição de extintores', fiscal:null, tipo:'completo', A:0,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'06410015.003445/2024-12', objeto:'Curso de capacitação — LGPD (sobrestado)', fiscal:'Lucas', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'CPPD'},
+  {sei:'06410002.002766/2024-49', objeto:'Locação de imóvel — Galpão (vigente até 06/10)', fiscal:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'06410002.001599/2025-08', objeto:'Estruturação do Galpão', fiscal:'Thiago', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'000110000835.000002/2026-77', objeto:'Aquisição de detectores de metal portáteis', fiscal:null, tipo:'apenas_tr', A:2,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'SEM-SEI-BANCOPRECOS', objeto:'Banco de Preços (sem SEI registrado)', fiscal:null, tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'SPL'},
+  {sei:'000110000071.000006/2026-34', objeto:'Aquisição de equipamentos de ar-condicionado', fiscal:null, tipo:'apenas_tr', A:2,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'000110000061.000011/2025-85', objeto:'Monitoramento de segurança (videomonitoramento)', fiscal:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'}
+];
+
+function popularComSeed() {
+  const agora = Date.now();
+  // espalha timestamps em 1 ms cada para preservar ordem mas manter "mais antigos"
+  // com timestamps menores (rotação funciona corretamente)
+  estado.processos = SEED_PROCESSOS_2026.map((s, i) => {
+    const dim = { A: s.A, B: s.B, C: s.C, D: s.D, E: s.E };
+    const calc = calcularSCT(s.tipo, dim);
+    const ts = agora - (SEED_PROCESSOS_2026.length - i); // mais antigos primeiro
+    return {
+      id: 'seed_' + i.toString().padStart(3, '0'),
+      sei: s.sei,
+      objeto: s.objeto,
+      tipoDemanda: s.tipo,
+      dimensoes: dim,
+      score: calc.score,
+      nivelCodigo: calc.nivel.codigo,
+      sctBase: calc.sctBase,
+      modificador: calc.modificador,
+      sctFinal: calc.sctFinal,
+      fiscalElaboracao: s.fiscal,
+      status: s.status,
+      aguardandoExterno: s.aguarda,
+      observacoes: 'Seed planilha 2026 (snapshot 05/05/2026) — revisar score e tipo',
+      criadoEm: ts,
+      ultimaAtualizacao: ts,
+      entrouFilaEm: s.status === 'revisao_matheus' || s.status === 'aprovacao_kerolaine' ? ts : null,
+      historico: [{ ts, evento: 'Carregado do snapshot da planilha 2026' }]
+    };
+  });
+}
+
+// ============================================================================
+//  PERSISTÊNCIA
+// ============================================================================
+function carregar() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      estado.processos = Array.isArray(obj.processos) ? obj.processos : [];
+      estado.config = { ...CONFIG_PADRAO, ...(obj.config || {}) };
+    }
+  } catch (e) {
+    console.warn('Falha ao carregar estado:', e);
+  }
+  // Migração: aditivos antigos podem ter sctFinal = 1 (regra anterior). Atualiza para 0,3.
+  let migrados = 0;
+  estado.processos.forEach(p => {
+    if (p.tipoDemanda === 'aditivo' && p.sctFinal !== TIPOS_DEMANDA.aditivo.sctFixo) {
+      p.sctBase = TIPOS_DEMANDA.aditivo.sctFixo;
+      p.sctFinal = TIPOS_DEMANDA.aditivo.sctFixo;
+      p.historico = p.historico || [];
+      p.historico.push({ ts: Date.now(), evento: 'Migração: SCT recalculado para regra atual' });
+      migrados++;
+    }
+  });
+  if (migrados > 0) {
+    salvar();
+    console.info(`Migração: ${migrados} aditivo(s) atualizado(s) para SCT = ${TIPOS_DEMANDA.aditivo.sctFixo}`);
+  }
+  // Primeira execução: popula com o snapshot da planilha 2026
+  if (estado.processos.length === 0) {
+    popularComSeed();
+    salvar();
+  }
+}
+function salvar() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+    salvarSnapshotDiario();
+    agendarAutoBackup();
+  } catch (e) {
+    toast('Erro ao salvar — armazenamento pode estar cheio', true);
+  }
+}
+
+// ============================================================================
+//  CÁLCULO DE COMPLEXIDADE
+// ============================================================================
+function calcularNivel(score) {
+  return NIVEIS.find(n => score <= n.max) || NIVEIS[NIVEIS.length - 1];
+}
+function calcularSCT(tipo, dim) {
+  const t = TIPOS_DEMANDA[tipo];
+  if (!t) return { score: 0, nivel: NIVEIS[0], sctBase: 0, modificador: 1, sctFinal: 0 };
+  if (t.sctFixo !== null) {
+    return {
+      score: null,
+      nivel: { codigo: '—', sct: t.sctFixo },
+      sctBase: t.sctFixo,
+      modificador: 1,
+      sctFinal: t.sctFixo
+    };
+  }
+  const score = dim.A + dim.B + dim.C + dim.D + dim.E;
+  const nivel = calcularNivel(score);
+  const sctBase = nivel.sct;
+  const modificador = t.modificador;
+  const sctFinal = Math.round(sctBase * modificador * 10) / 10;
+  return { score, nivel, sctBase, modificador, sctFinal };
+}
+
+// ============================================================================
+//  DISTRIBUIÇÃO
+// ============================================================================
+function somaSCTAtiva(fiscal) {
+  return estado.processos
+    .filter(p => p.fiscalElaboracao === fiscal
+              && p.status !== 'aprovado'
+              && p.status !== 'arquivado'
+              && p.status !== 'bloqueado_externo')
+    .reduce((soma, p) => soma + (p.sctFinal || 0), 0);
+}
+function ultimoTimestamp(fiscal) {
+  const procs = estado.processos.filter(p => p.fiscalElaboracao === fiscal);
+  if (procs.length === 0) return 0; // nunca recebeu → prioridade máxima
+  return Math.max(...procs.map(p => p.criadoEm || 0));
+}
+function escolherFiscal() {
+  const cargasPrimarios = {};
+  FISCAIS_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
+  const todosNoLimite = FISCAIS_PRIMARIOS.every(f => cargasPrimarios[f] >= estado.config.limiarSuplencia);
+
+  let candidatos = [...FISCAIS_PRIMARIOS];
+  let modo = 'primario';
+  if (todosNoLimite) {
+    candidatos.push(MATHEUS);
+    cargasPrimarios[MATHEUS] = somaSCTAtiva(MATHEUS);
+    modo = 'suplencia';
+  }
+
+  const minSct = Math.min(...candidatos.map(f => cargasPrimarios[f]));
+  const empatados = candidatos.filter(f => cargasPrimarios[f] === minSct);
+
+  if (empatados.length === 1) {
+    return { fiscal: empatados[0], modo, cargas: cargasPrimarios };
+  }
+  // Desempate: rotação por timestamp (mais antigo / nunca recebeu vence)
+  const escolhido = empatados.reduce((a, b) => {
+    const ta = ultimoTimestamp(a);
+    const tb = ultimoTimestamp(b);
+    if (ta !== tb) return ta < tb ? a : b;
+    // Segundo desempate: ordem alfabética configurada
+    return FISCAIS_PRIMARIOS.indexOf(a) >= 0 && FISCAIS_PRIMARIOS.indexOf(b) >= 0
+      ? (FISCAIS_PRIMARIOS.indexOf(a) < FISCAIS_PRIMARIOS.indexOf(b) ? a : b)
+      : a;
+  });
+  return { fiscal: escolhido, modo, cargas: cargasPrimarios };
+}
+
+// ============================================================================
+//  UTIL
+// ============================================================================
+function uuid() {
+  return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+}
+function formatarData(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+function diasUteisDesde(ts) {
+  if (!ts) return 0;
+  const ms = Date.now() - ts;
+  const diasCorridos = Math.floor(ms / (1000 * 60 * 60 * 24));
+  // Aproximação: 5 dias úteis por 7 corridos
+  return Math.floor(diasCorridos * 5 / 7);
+}
+function toast(msg, erro = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('erro', erro);
+  el.classList.add('visivel');
+  setTimeout(() => el.classList.remove('visivel'), 3500);
+}
+
+// ============================================================================
+//  RENDERIZAÇÃO — DASHBOARD
+// ============================================================================
+function renderDashboard() {
+  const total = estado.processos.length;
+  const ativos = estado.processos.filter(p => p.status !== 'aprovado' && p.status !== 'arquivado' && p.status !== 'bloqueado_externo').length;
+  const bloqueados = estado.processos.filter(p => p.status === 'bloqueado_externo').length;
+  const filaMatheus = estado.processos.filter(p => p.status === 'revisao_matheus').length;
+  const filaKerolaine = estado.processos.filter(p => p.status === 'aprovacao_kerolaine').length;
+  const aprovados = estado.processos.filter(p => p.status === 'aprovado').length;
+  const arquivados = estado.processos.filter(p => p.status === 'arquivado').length;
+
+  const cargasPrimarios = {};
+  FISCAIS_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
+  const cargaMatheus = somaSCTAtiva(MATHEUS);
+  const todosNoLimite = FISCAIS_PRIMARIOS.every(f => cargasPrimarios[f] >= estado.config.limiarSuplencia);
+
+  // Cards de resumo
+  const cardsHtml = `
+    <div class="card">
+      <div class="rotulo">Processos totais</div>
+      <div class="valor">${total}</div>
+      <div class="detalhe">${ativos} ativos · ${aprovados} aprovados · ${arquivados} arquivados</div>
+    </div>
+    <div class="card ${bloqueados > 0 ? 'atencao' : ''}">
+      <div class="rotulo">Bloqueados externos</div>
+      <div class="valor">${bloqueados}</div>
+      <div class="detalhe">Não contam para carga</div>
+    </div>
+    <div class="card ${filaMatheus > 0 ? 'atencao' : ''}">
+      <div class="rotulo">Fila Matheus</div>
+      <div class="valor">${filaMatheus}</div>
+      <div class="detalhe">SLA ${estado.config.slaMatheus} d.u.</div>
+    </div>
+    <div class="card ${filaKerolaine > 0 ? 'atencao' : ''}">
+      <div class="rotulo">Fila Kerolaine</div>
+      <div class="valor">${filaKerolaine}</div>
+      <div class="detalhe">SLA ${estado.config.slaKerolaine} d.u.</div>
+    </div>
+    <div class="card ${todosNoLimite ? 'alerta' : ''}">
+      <div class="rotulo">Modo Matheus suplente</div>
+      <div class="valor">${todosNoLimite ? 'SIM' : 'NÃO'}</div>
+      <div class="detalhe">Limiar ${estado.config.limiarSuplencia} SCT</div>
+    </div>
+  `;
+  document.getElementById('cards-resumo').innerHTML = cardsHtml;
+
+  // Barras de carga
+  const todosFiscais = [...FISCAIS_PRIMARIOS, MATHEUS];
+  const maxBarraSct = Math.max(estado.config.limiarSuplencia * 1.5, ...todosFiscais.map(f => somaSCTAtiva(f)), 10);
+  let barrasHtml = '';
+  todosFiscais.forEach(f => {
+    const carga = somaSCTAtiva(f);
+    const pct = Math.min(100, (carga / maxBarraSct) * 100);
+    const limiarPct = Math.min(100, (estado.config.limiarSuplencia / maxBarraSct) * 100);
+    let classe = '';
+    if (carga >= estado.config.limiarSuplencia) classe = 'alerta';
+    else if (carga >= estado.config.limiarSuplencia * 0.75) classe = 'atencao';
+    const papel = f === MATHEUS ? 'Suplente / Revisor' : 'Elaboração';
+    barrasHtml += `
+      <div class="barra-fiscal">
+        <div class="nome">${f}<small>${papel}</small></div>
+        <div class="barra-wrapper">
+          <div class="barra-preenchida ${classe}" style="width:${pct}%"></div>
+          <div class="barra-limiar" style="left:${limiarPct}%" title="Limiar de suplência"></div>
+        </div>
+        <div class="pct">${carga.toFixed(1)} SCT</div>
+      </div>
+    `;
+  });
+  document.getElementById('barras-carga').innerHTML = barrasHtml;
+
+  // Estado Matheus
+  const slaCriticoMatheus = estado.processos
+    .filter(p => p.status === 'revisao_matheus')
+    .some(p => diasUteisDesde(p.entrouFilaEm || p.criadoEm) >= estado.config.slaMatheus);
+
+  let papelAtual = 'Revisor de TR';
+  if (todosNoLimite && !slaCriticoMatheus) papelAtual = 'Revisor + Suplente (elaboração ativa)';
+  else if (todosNoLimite && slaCriticoMatheus) papelAtual = 'Revisor (prioridade — SLA crítico)';
+
+  document.getElementById('estado-matheus').innerHTML = `
+    <div class="card">
+      <div class="rotulo">Papel atual</div>
+      <div class="valor" style="font-size:1rem; line-height:1.2;">${papelAtual}</div>
+    </div>
+    <div class="card">
+      <div class="rotulo">SCT como suplente</div>
+      <div class="valor">${cargaMatheus.toFixed(1)}</div>
+      <div class="detalhe">Processos elaborados por Matheus</div>
+    </div>
+    <div class="card ${slaCriticoMatheus ? 'alerta' : ''}">
+      <div class="rotulo">SLA crítico na revisão</div>
+      <div class="valor">${slaCriticoMatheus ? 'SIM' : 'NÃO'}</div>
+      <div class="detalhe">Revisão tem prioridade sobre elaboração suplente</div>
+    </div>
+  `;
+}
+
+// ============================================================================
+//  RENDERIZAÇÃO — TABELA DE PROCESSOS
+// ============================================================================
+function renderProcessos() {
+  const ff = document.getElementById('filtro-fiscal').value;
+  const fn = document.getElementById('filtro-nivel').value;
+  const fs = document.getElementById('filtro-status').value;
+  const ft = document.getElementById('filtro-tipo').value;
+  const fb = document.getElementById('filtro-busca').value.toLowerCase();
+
+  const tbody = document.querySelector('#tabela-processos tbody');
+  const filtrados = estado.processos.filter(p => {
+    if (ff && p.fiscalElaboracao !== ff) return false;
+    if (fn && (p.nivelCodigo || '') !== fn) return false;
+    if (fs && p.status !== fs) return false;
+    if (ft && p.tipoDemanda !== ft) return false;
+    if (fb && !((p.sei || '').toLowerCase().includes(fb) || (p.objeto || '').toLowerCase().includes(fb))) return false;
+    return true;
+  });
+
+  if (filtrados.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:2rem; color:var(--tinta-fraca); font-style:italic;">Nenhum processo encontrado</td></tr>';
+    return;
+  }
+
+  filtrados.sort((a, b) => (b.ultimaAtualizacao || 0) - (a.ultimaAtualizacao || 0));
+
+  tbody.innerHTML = filtrados.map(p => {
+    const tipo = TIPOS_DEMANDA[p.tipoDemanda];
+    const statusInfo = STATUS_ROTULOS[p.status] || { texto: p.status, classe: '' };
+    const nivelClasse = (p.nivelCodigo || 'n1').toLowerCase();
+    const ehAditivoAtivo = p.tipoDemanda === 'aditivo' && p.status === 'elaboracao';
+    const ehArquivado = p.status === 'arquivado';
+    const ehTerminal = p.status === 'aprovado' || p.status === 'arquivado';
+    let acoesExtra = '';
+    if (ehAditivoAtivo) {
+      acoesExtra += `<button class="btn pequeno" onclick="avancarStatus('${p.id}', 'aprovado')">Concluir</button>`;
+    }
+    if (ehArquivado) {
+      acoesExtra += `<button class="btn pequeno secundario" onclick="desarquivarProcesso('${p.id}')">Desarquivar</button>`;
+    } else if (!ehTerminal) {
+      acoesExtra += `<button class="btn pequeno secundario" onclick="arquivarProcesso('${p.id}')">Arquivar</button>`;
+    }
+    return `
+      <tr>
+        <td><code style="font-size:0.78rem;">${p.sei || '—'}</code></td>
+        <td>${p.objeto || '—'}</td>
+        <td><span class="badge tipo">${tipo ? tipo.rotulo : '?'}</span></td>
+        <td>${p.nivelCodigo ? `<span class="badge ${nivelClasse}">${p.nivelCodigo}</span>` : '—'}</td>
+        <td class="num">${(p.sctFinal || 0).toFixed(1)}</td>
+        <td>${p.fiscalElaboracao || '—'}</td>
+        <td><span class="badge ${statusInfo.classe}">${statusInfo.texto}</span></td>
+        <td>${p.aguardandoExterno || '—'}</td>
+        <td style="font-size:0.75rem;">${formatarData(p.ultimaAtualizacao)}</td>
+        <td>
+          ${acoesExtra}
+          <button class="btn pequeno secundario" onclick="abrirEdicao('${p.id}')">Editar</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ============================================================================
+//  RENDERIZAÇÃO — FILAS
+// ============================================================================
+function renderFilas() {
+  document.getElementById('legenda-sla').textContent =
+    `Matheus ${estado.config.slaMatheus} · Kerolaine ${estado.config.slaKerolaine}`;
+
+  const renderFila = (status, slaConfig, container, proximoStatus, proximoNome) => {
+    const fila = estado.processos
+      .filter(p => p.status === status)
+      .sort((a, b) => (a.entrouFilaEm || a.criadoEm || 0) - (b.entrouFilaEm || b.criadoEm || 0));
+
+    if (fila.length === 0) {
+      container.innerHTML = '<p style="color:var(--tinta-fraca); font-style:italic; font-size:0.85rem;">Fila vazia</p>';
+      return;
+    }
+
+    container.innerHTML = fila.map(p => {
+      const tsEntrada = p.entrouFilaEm || p.criadoEm;
+      const dias = diasUteisDesde(tsEntrada);
+      let classe = '';
+      let infoClasse = '';
+      let infoTexto = `${dias} d.u. nesta fila · entrou em ${formatarData(tsEntrada)}`;
+      if (dias >= slaConfig) {
+        classe = 'sla-vermelho';
+        infoClasse = 'vermelho';
+        infoTexto = `SLA estourado — ${dias} d.u. nesta fila (limite ${slaConfig})`;
+      } else if (dias >= slaConfig - 1) {
+        classe = 'sla-amarelo';
+      }
+      const acaoTexto = proximoStatus === 'aprovado'
+        ? 'Aprovar (finalizar)'
+        : `Encaminhar para ${proximoNome}`;
+      return `
+        <div class="fila-item ${classe}">
+          <div><strong>${p.sei || '—'}</strong> — ${p.objeto || '—'}</div>
+          <div style="font-size:0.78rem; color:var(--tinta-suave); margin-top:0.2rem;">
+            ${TIPOS_DEMANDA[p.tipoDemanda]?.rotulo || ''} · ${p.nivelCodigo || '—'} · ${(p.sctFinal || 0).toFixed(1)} SCT · elab.: ${p.fiscalElaboracao}
+          </div>
+          <div class="sla-info ${infoClasse}">${infoTexto}</div>
+          <div class="acoes">
+            <button class="btn pequeno" onclick="avancarStatus('${p.id}', '${proximoStatus}')">${acaoTexto}</button>
+            <button class="btn pequeno secundario" onclick="abrirEdicao('${p.id}')">Editar</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
+
+  renderFila('revisao_matheus', estado.config.slaMatheus, document.getElementById('fila-matheus'), 'aprovacao_kerolaine', 'Kerolaine');
+  renderFila('aprovacao_kerolaine', estado.config.slaKerolaine, document.getElementById('fila-kerolaine'), 'aprovado', 'Aprovado');
+}
+
+// ============================================================================
+//  AÇÕES
+// ============================================================================
+function distribuirNovo() {
+  const sei = document.getElementById('campo-sei').value.trim();
+  const objeto = document.getElementById('campo-objeto').value.trim();
+  const tipo = document.getElementById('campo-tipo').value;
+  if (!sei || !objeto) {
+    toast('Preencha SEI e objeto', true);
+    return;
+  }
+  const dim = {
+    A: parseInt(document.getElementById('campo-A').value, 10),
+    B: parseInt(document.getElementById('campo-B').value, 10),
+    C: parseInt(document.getElementById('campo-C').value, 10),
+    D: parseInt(document.getElementById('campo-D').value, 10),
+    E: parseInt(document.getElementById('campo-E').value, 10)
+  };
+  const calc = calcularSCT(tipo, dim);
+  const dist = escolherFiscal();
+  const agora = Date.now();
+  const proc = {
+    id: uuid(),
+    sei,
+    objeto,
+    tipoDemanda: tipo,
+    dimensoes: dim,
+    score: calc.score,
+    nivelCodigo: calc.nivel.codigo,
+    sctBase: calc.sctBase,
+    modificador: calc.modificador,
+    sctFinal: calc.sctFinal,
+    fiscalElaboracao: dist.fiscal,
+    status: 'elaboracao',
+    aguardandoExterno: null,
+    observacoes: document.getElementById('campo-obs').value.trim(),
+    criadoEm: agora,
+    ultimaAtualizacao: agora,
+    entrouFilaEm: null,
+    historico: [{ ts: agora, evento: 'Criado e distribuído para ' + dist.fiscal }]
+  };
+  estado.processos.push(proc);
+  salvar();
+
+  const painel = document.getElementById('painel-distribuicao');
+  painel.style.display = 'block';
+  const aviso = dist.modo === 'suplencia'
+    ? '<br><strong style="color:var(--vermelho-alerta);">⚠ Todos os primários estão no limiar — Matheus acionado como suplente.</strong>'
+    : '';
+  painel.innerHTML = `
+    <div class="resultado-distribuicao">
+      Processo <strong>${sei}</strong> distribuído para <strong>${dist.fiscal}</strong>.<br>
+      Score: ${calc.score ?? '—'} · Nível: ${calc.nivel.codigo} · SCT base: ${calc.sctBase} · Modificador: ×${calc.modificador} · <strong>SCT final: ${calc.sctFinal}</strong>
+      ${aviso}
+    </div>
+  `;
+  renderTudo();
+  toast(`Distribuído para ${dist.fiscal} (${calc.sctFinal} SCT)`);
+}
+
+function avancarStatus(id, novoStatus) {
+  const p = estado.processos.find(x => x.id === id);
+  if (!p) return;
+  p.status = novoStatus;
+  p.entrouFilaEm = Date.now();
+  p.ultimaAtualizacao = Date.now();
+  p.historico = p.historico || [];
+  p.historico.push({ ts: Date.now(), evento: 'Status → ' + (STATUS_ROTULOS[novoStatus]?.texto || novoStatus) });
+  salvar();
+  renderTudo();
+  toast('Status atualizado');
+}
+
+function arquivarProcesso(id) {
+  const p = estado.processos.find(x => x.id === id);
+  if (!p) return;
+  const motivo = prompt(
+    `Arquivar processo ${p.sei || '(sem SEI)'}?\n\n` +
+    'Use "Arquivado" para processos encerrados sem conclusão normal (perda de objeto, ' +
+    'oportunidade fracassada, sobrestamento permanente, cancelamento). Para conclusão ' +
+    'normal, use "Concluir" ou o fluxo de aprovação.\n\n' +
+    'Motivo do arquivamento (opcional):',
+    ''
+  );
+  if (motivo === null) return; // cancelado
+  p.status = 'arquivado';
+  p.ultimaAtualizacao = Date.now();
+  p.aguardandoExterno = null;
+  p.historico = p.historico || [];
+  p.historico.push({
+    ts: Date.now(),
+    evento: 'Arquivado' + (motivo ? ' — ' + motivo : '')
+  });
+  if (motivo) {
+    p.observacoes = (p.observacoes ? p.observacoes + '\n\n' : '') +
+      `[Arquivado em ${new Date().toLocaleDateString('pt-BR')}] ${motivo}`;
+  }
+  salvar();
+  renderTudo();
+  toast('Processo arquivado');
+}
+
+function desarquivarProcesso(id) {
+  const p = estado.processos.find(x => x.id === id);
+  if (!p || p.status !== 'arquivado') return;
+  // Quatro estados possíveis de retorno; pergunta ao usuário
+  const opcoes = [
+    '1 — Em elaboração (volta para o fiscal)',
+    '2 — Bloqueado externo (aguardando retorno)',
+    '3 — Revisão (Matheus)',
+    '4 — Aprovação (Kerolaine)'
+  ].join('\n');
+  const escolha = prompt(
+    `Desarquivar processo ${p.sei || '(sem SEI)'}.\n\n` +
+    'Para qual status deve voltar?\n\n' + opcoes + '\n\n' +
+    'Digite o número (1-4) ou cancele para abortar:',
+    '1'
+  );
+  if (escolha === null) return;
+  const mapaStatus = { '1': 'elaboracao', '2': 'bloqueado_externo', '3': 'revisao_matheus', '4': 'aprovacao_kerolaine' };
+  const novoStatus = mapaStatus[escolha.trim()];
+  if (!novoStatus) {
+    toast('Opção inválida — operação cancelada', true);
+    return;
+  }
+  // Se for bloqueado externo, pergunta por qual setor
+  let aguardando = null;
+  if (novoStatus === 'bloqueado_externo') {
+    const setor = prompt('Aguardando qual setor externo? (CEAP, CTI, CCSC, AJ, DPGE ou outro)', '');
+    if (setor === null) return;
+    aguardando = setor.trim() || null;
+  }
+  // Se for revisão ou aprovação, garante que tenha fiscal atribuído
+  if ((novoStatus === 'revisao_matheus' || novoStatus === 'aprovacao_kerolaine') && !p.fiscalElaboracao) {
+    toast('Processo precisa ter fiscal de elaboração antes de ir para revisão/aprovação. Edite primeiro.', true);
+    return;
+  }
+  p.status = novoStatus;
+  p.aguardandoExterno = aguardando;
+  p.entrouFilaEm = (novoStatus === 'revisao_matheus' || novoStatus === 'aprovacao_kerolaine') ? Date.now() : null;
+  p.ultimaAtualizacao = Date.now();
+  p.historico = p.historico || [];
+  p.historico.push({
+    ts: Date.now(),
+    evento: 'Desarquivado → ' + (STATUS_ROTULOS[novoStatus]?.texto || novoStatus)
+      + (aguardando ? ' (aguardando ' + aguardando + ')' : '')
+  });
+  salvar();
+  renderTudo();
+  toast('Processo desarquivado');
+}
+
+// ============================================================================
+//  MODAL DE EDIÇÃO
+// ============================================================================
+let editandoId = null;
+function abrirEdicao(id) {
+  const p = estado.processos.find(x => x.id === id);
+  if (!p) return;
+  editandoId = id;
+  document.getElementById('modal-titulo').textContent = `Editar ${p.sei}`;
+  document.getElementById('modal-conteudo').innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+      <div class="full" style="grid-column:1/-1;">
+        <label>Objeto</label>
+        <input type="text" id="edit-objeto" value="${(p.objeto || '').replace(/"/g, '&quot;')}">
+      </div>
+      <div>
+        <label>Fiscal de elaboração</label>
+        <select id="edit-fiscal">
+          ${[...FISCAIS_PRIMARIOS, MATHEUS].map(f =>
+            `<option value="${f}" ${p.fiscalElaboracao === f ? 'selected' : ''}>${f}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Status</label>
+        <select id="edit-status">
+          ${Object.entries(STATUS_ROTULOS).map(([k, v]) =>
+            `<option value="${k}" ${p.status === k ? 'selected' : ''}>${v.texto}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Aguardando externo</label>
+        <select id="edit-aguarda">
+          <option value="">— Nenhum —</option>
+          <option value="CTI" ${p.aguardandoExterno === 'CTI' ? 'selected' : ''}>CTI</option>
+          <option value="CEAP" ${p.aguardandoExterno === 'CEAP' ? 'selected' : ''}>CEAP</option>
+          <option value="CCSC" ${p.aguardandoExterno === 'CCSC' ? 'selected' : ''}>CCSC</option>
+          <option value="Outro" ${p.aguardandoExterno === 'Outro' ? 'selected' : ''}>Outro</option>
+        </select>
+      </div>
+      <div>
+        <label>SCT final (manual, sobrescreve cálculo)</label>
+        <input type="number" id="edit-sct" step="0.1" min="0" value="${p.sctFinal || 0}">
+      </div>
+      <div class="full" style="grid-column:1/-1;">
+        <label>Observações</label>
+        <textarea id="edit-obs">${p.observacoes || ''}</textarea>
+      </div>
+    </div>
+    <div style="margin-top:0.75rem;">
+      <button class="btn perigo pequeno" onclick="excluirProcesso('${id}')">Excluir processo</button>
+    </div>
+  `;
+  document.getElementById('modal-edicao').classList.add('aberto');
+}
+function fecharEdicao() {
+  document.getElementById('modal-edicao').classList.remove('aberto');
+  editandoId = null;
+}
+function salvarEdicao() {
+  if (!editandoId) return;
+  const p = estado.processos.find(x => x.id === editandoId);
+  if (!p) return;
+  p.objeto = document.getElementById('edit-objeto').value.trim();
+  p.fiscalElaboracao = document.getElementById('edit-fiscal').value;
+  const novoStatus = document.getElementById('edit-status').value;
+  if (novoStatus !== p.status) {
+    p.entrouFilaEm = Date.now();
+  }
+  p.status = novoStatus;
+  p.aguardandoExterno = document.getElementById('edit-aguarda').value || null;
+  p.sctFinal = parseFloat(document.getElementById('edit-sct').value) || 0;
+  p.observacoes = document.getElementById('edit-obs').value.trim();
+  p.ultimaAtualizacao = Date.now();
+  p.historico = p.historico || [];
+  p.historico.push({ ts: Date.now(), evento: 'Edição manual' });
+  salvar();
+  fecharEdicao();
+  renderTudo();
+  toast('Processo atualizado');
+}
+function excluirProcesso(id) {
+  if (!confirm('Excluir este processo? Esta ação não pode ser desfeita.')) return;
+  estado.processos = estado.processos.filter(p => p.id !== id);
+  salvar();
+  fecharEdicao();
+  renderTudo();
+  toast('Processo excluído');
+}
+
+// ============================================================================
+//  CONFIGURAÇÃO
+// ============================================================================
+function carregarConfigUI() {
+  document.getElementById('cfg-limiar').value = estado.config.limiarSuplencia;
+  document.getElementById('cfg-sla-matheus').value = estado.config.slaMatheus;
+  document.getElementById('cfg-sla-kerolaine').value = estado.config.slaKerolaine;
+  document.getElementById('lista-fiscais').innerHTML = FISCAIS_PRIMARIOS.map(f =>
+    `<li><strong>${f}</strong> — elaboração primária</li>`).join('') +
+    `<li><strong>${MATHEUS}</strong> — revisor de TR + suplente de elaboração</li>` +
+    `<li><strong>${KEROLAINE}</strong> — aprovação exclusiva</li>`;
+}
+function salvarConfig() {
+  estado.config.limiarSuplencia = Math.max(1, parseInt(document.getElementById('cfg-limiar').value, 10) || 12);
+  estado.config.slaMatheus = Math.max(1, parseInt(document.getElementById('cfg-sla-matheus').value, 10) || 2);
+  estado.config.slaKerolaine = Math.max(1, parseInt(document.getElementById('cfg-sla-kerolaine').value, 10) || 2);
+  salvar();
+  renderTudo();
+  toast('Configuração salva');
+}
+
+// ============================================================================
+//  IMPORT / EXPORT
+// ============================================================================
+function exportarJSON() {
+  const blob = new Blob([JSON.stringify(estado, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `coag-distribuicao-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('JSON exportado');
+}
+function exportarCSV() {
+  const cab = ['SEI','Objeto','Tipo','Score','Nivel','SCT_base','Modificador','SCT_final','Fiscal','Status','Aguardando','Criado','Atualizado'];
+  const linhas = estado.processos.map(p => [
+    p.sei || '',
+    (p.objeto || '').replace(/"/g, '""'),
+    TIPOS_DEMANDA[p.tipoDemanda]?.rotulo || '',
+    p.score ?? '',
+    p.nivelCodigo || '',
+    p.sctBase ?? '',
+    p.modificador ?? '',
+    p.sctFinal ?? '',
+    p.fiscalElaboracao || '',
+    STATUS_ROTULOS[p.status]?.texto || p.status || '',
+    p.aguardandoExterno || '',
+    p.criadoEm ? new Date(p.criadoEm).toISOString() : '',
+    p.ultimaAtualizacao ? new Date(p.ultimaAtualizacao).toISOString() : ''
+  ].map(c => `"${c}"`).join(','));
+  const csv = [cab.join(','), ...linhas].join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `coag-distribuicao-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV exportado');
+}
+function importarJSON() {
+  const file = document.getElementById('input-import').files[0];
+  if (!file) {
+    toast('Selecione um arquivo primeiro', true);
+    return;
+  }
+  if (!confirm('Importar substituirá completamente o estado atual. Confirma?')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const obj = JSON.parse(e.target.result);
+      if (!obj || !Array.isArray(obj.processos)) throw new Error('Formato inválido');
+      estado.processos = obj.processos;
+      estado.config = { ...CONFIG_PADRAO, ...(obj.config || {}) };
+      salvar();
+      renderTudo();
+      carregarConfigUI();
+      toast('Importação concluída');
+    } catch (err) {
+      toast('Erro ao importar: ' + err.message, true);
+    }
+  };
+  reader.readAsText(file);
+}
+function resetarTudo() {
+  if (!confirm('APAGAR todos os processos e restaurar configuração padrão? Irreversível.')) return;
+  if (!confirm('Confirme novamente: apagar tudo?')) return;
+  estado = { processos: [], config: { ...CONFIG_PADRAO } };
+  salvar();
+  renderTudo();
+  carregarConfigUI();
+  toast('Sistema resetado');
+}
+function inserirExemplos() {
+  const agora = Date.now();
+  const exemplos = [
+    { sei: '000110000061.000001/2026-01', objeto: 'Serviço de vigilância armada — sede', tipo: 'completo', dim: {A:5,B:2,C:1,D:0,E:1} },
+    { sei: '000110000061.000002/2026-02', objeto: 'Aquisição de licenças de software jurídico', tipo: 'apenas_tr', dim: {A:4,B:1,C:1,D:0,E:1} },
+    { sei: '000110000061.000003/2026-03', objeto: 'Limpeza e conservação — 22 municípios', tipo: 'completo', dim: {A:5,B:2,C:1,D:1,E:1} },
+    { sei: '000110000061.000004/2026-04', objeto: 'Aquisição de água mineral (bens comuns)', tipo: 'completo', dim: {A:0,B:1,C:0,D:0,E:0} },
+    { sei: '000110000061.000005/2026-05', objeto: 'Aditivo de prazo — Contrato 23/2021', tipo: 'aditivo', dim: {A:0,B:0,C:0,D:0,E:0} }
+  ];
+  let inseridos = 0;
+  exemplos.forEach((ex, idx) => {
+    const calc = calcularSCT(ex.tipo, ex.dim);
+    const dist = escolherFiscal();
+    const ts = agora + idx;
+    const proc = {
+      id: uuid(),
+      sei: ex.sei,
+      objeto: ex.objeto,
+      tipoDemanda: ex.tipo,
+      dimensoes: ex.dim,
+      score: calc.score,
+      nivelCodigo: calc.nivel.codigo,
+      sctBase: calc.sctBase,
+      modificador: calc.modificador,
+      sctFinal: calc.sctFinal,
+      fiscalElaboracao: dist.fiscal,
+      status: 'elaboracao',
+      aguardandoExterno: null,
+      observacoes: 'Processo de exemplo',
+      criadoEm: ts,
+      ultimaAtualizacao: ts,
+      entrouFilaEm: null,
+      historico: [{ ts, evento: 'Exemplo carregado · distribuído para ' + dist.fiscal }]
+    };
+    estado.processos.push(proc);
+    inseridos++;
+  });
+  salvar();
+  renderTudo();
+  toast(`${inseridos} processos de exemplo inseridos`);
+}
+
+// ============================================================================
+//  PRÉ-CÁLCULO NO FORMULÁRIO
+// ============================================================================
+function atualizarPrecalculo() {
+  const tipo = document.getElementById('campo-tipo').value;
+  const dim = {
+    A: parseInt(document.getElementById('campo-A').value, 10),
+    B: parseInt(document.getElementById('campo-B').value, 10),
+    C: parseInt(document.getElementById('campo-C').value, 10),
+    D: parseInt(document.getElementById('campo-D').value, 10),
+    E: parseInt(document.getElementById('campo-E').value, 10)
+  };
+  const calc = calcularSCT(tipo, dim);
+  const cargasPrimarios = {};
+  FISCAIS_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
+  const previa = escolherFiscal();
+  const t = TIPOS_DEMANDA[tipo];
+  let texto = '';
+  if (t.sctFixo !== null) {
+    texto = `Tipo <strong>${t.rotulo}</strong> → SCT fixo = <strong>${t.sctFixo}</strong> (não aplica matriz)`;
+  } else {
+    texto = `Score = ${calc.score} → <strong>${calc.nivel.codigo}</strong> → SCT base ${calc.sctBase} × ${calc.modificador} = <strong>${calc.sctFinal} SCT final</strong>`;
+  }
+  texto += `<br>Previsão de distribuição: <strong>${previa.fiscal}</strong>`;
+  if (previa.modo === 'suplencia') texto += ' <span style="color:var(--vermelho-alerta);">(suplência ativa)</span>';
+  texto += `<br><small style="color:var(--tinta-suave);">Cargas atuais: ${FISCAIS_PRIMARIOS.map(f => `${f} ${cargasPrimarios[f].toFixed(1)}`).join(' · ')}</small>`;
+  document.getElementById('precalculo').innerHTML = texto;
+}
+
+// ============================================================================
+//  PROTEÇÕES DE DADOS — Camadas 1 a 4
+// ============================================================================
+
+// ---------- Camada 1: navigator.storage.persist() ----------
+async function checarPersistencia() {
+  if (!('storage' in navigator) || !('persisted' in navigator.storage)) {
+    return { suportado: false, ativo: false };
+  }
+  const ativo = await navigator.storage.persisted();
+  return { suportado: true, ativo };
+}
+async function solicitarPersistencia() {
+  if (!('storage' in navigator) || !('persist' in navigator.storage)) {
+    toast('Seu navegador não suporta API de persistência', true);
+    return false;
+  }
+  const concedido = await navigator.storage.persist();
+  if (concedido) toast('Persistência ativada — dados protegidos contra limpeza automática');
+  else toast('Navegador negou persistência. Configure backup em pasta como alternativa.', true);
+  atualizarStatusProtecoes();
+  return concedido;
+}
+
+// ---------- Camada 2: Snapshots rotativos (7 dias) ----------
+const SNAP_PREFIX = 'coag_snap_';
+const SNAP_MAX_DIAS = 7;
+
+function salvarSnapshotDiario() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const chave = SNAP_PREFIX + hoje;
+  try {
+    localStorage.setItem(chave, JSON.stringify({
+      ts: Date.now(),
+      processos: estado.processos,
+      config: estado.config
+    }));
+    // Limpa snapshots > 7 dias
+    const limiteData = new Date(Date.now() - SNAP_MAX_DIAS * 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10);
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith(SNAP_PREFIX) && k.slice(SNAP_PREFIX.length) < limiteData) {
+        localStorage.removeItem(k);
+      }
+    });
+  } catch (e) {
+    console.warn('Falha ao salvar snapshot:', e);
+  }
+}
+function listarSnapshots() {
+  return Object.keys(localStorage)
+    .filter(k => k.startsWith(SNAP_PREFIX))
+    .map(k => {
+      try {
+        const obj = JSON.parse(localStorage.getItem(k));
+        return {
+          chave: k,
+          data: k.slice(SNAP_PREFIX.length),
+          ts: obj.ts,
+          processos: obj.processos?.length || 0
+        };
+      } catch { return null; }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.data.localeCompare(a.data));
+}
+function restaurarSnapshot(chave) {
+  const snap = JSON.parse(localStorage.getItem(chave));
+  if (!snap) {
+    toast('Snapshot não encontrado', true);
+    return;
+  }
+  if (!confirm(`Restaurar snapshot de ${chave.slice(SNAP_PREFIX.length)} (${snap.processos.length} processos)? O estado atual será substituído.`)) return;
+  estado.processos = snap.processos;
+  if (snap.config) estado.config = { ...CONFIG_PADRAO, ...snap.config };
+  salvar();
+  renderTudo();
+  carregarConfigUI();
+  toast('Snapshot restaurado');
+}
+
+// ---------- Camada 3: Backup automático em pasta (File System Access API) ----------
+let dirHandle = null;
+let autoBackupTimer = null;
+
+// IndexedDB para persistir o DirectoryHandle (localStorage não serializa handles)
+const IDB_NAME = 'coag-meta';
+const IDB_STORE = 'handles';
+function openIDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(IDB_STORE);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function salvarDirHandle(handle) {
+  const db = await openIDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(handle, 'backupDir');
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+async function lerDirHandle() {
+  try {
+    const db = await openIDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get('backupDir');
+      req.onsuccess = () => res(req.result || null);
+      req.onerror = () => rej(req.error);
+    });
+  } catch { return null; }
+}
+async function removerDirHandle() {
+  try {
+    const db = await openIDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete('backupDir');
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+  } catch {}
+}
+
+async function configurarPastaBackup() {
+  if (!('showDirectoryPicker' in window)) {
+    toast('Seu navegador não suporta File System Access API. Use Chrome, Edge, Opera ou Brave.', true);
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({
+      mode: 'readwrite',
+      startIn: 'documents'
+    });
+    dirHandle = handle;
+    await salvarDirHandle(handle);
+    toast(`Pasta configurada: ${handle.name}`);
+    await executarAutoBackup(true);
+    atualizarStatusProtecoes();
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    toast('Erro ao configurar pasta: ' + e.message, true);
+  }
+}
+
+async function executarAutoBackup(forcarPedidoPermissao = false) {
+  if (!dirHandle) return false;
+  try {
+    let perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      if (!forcarPedidoPermissao) {
+        // sem interação do usuário, Chrome bloqueia request
+        atualizarStatusProtecoes();
+        return false;
+      }
+      perm = await dirHandle.requestPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') {
+        toast('Permissão negada. Reative configurando a pasta novamente.', true);
+        return false;
+      }
+    }
+    const data = new Date().toISOString().slice(0, 10);
+    const filename = `coag-backup-${data}.json`;
+    const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify({
+      processos: estado.processos,
+      config: estado.config,
+      gerado_em: new Date().toISOString()
+    }, null, 2));
+    await writable.close();
+    estado.config.ultimoAutoBackup = Date.now();
+    estado.config.nomePastaBackup = dirHandle.name;
+    // Salva sem disparar agendamento de novo backup (evita loop)
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(estado)); } catch {}
+    await limparBackupsAntigos();
+    atualizarStatusProtecoes();
+    return true;
+  } catch (e) {
+    console.warn('Erro no auto-backup:', e);
+    return false;
+  }
+}
+
+async function limparBackupsAntigos() {
+  if (!dirHandle) return;
+  const limite = Date.now() - 30 * 24 * 60 * 60 * 1000; // 30 dias
+  try {
+    for await (const [name, entry] of dirHandle.entries()) {
+      if (entry.kind !== 'file') continue;
+      if (!name.startsWith('coag-backup-') || !name.endsWith('.json')) continue;
+      const file = await entry.getFile();
+      if (file.lastModified < limite) {
+        await dirHandle.removeEntry(name);
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao limpar backups antigos:', e);
+  }
+}
+
+function agendarAutoBackup() {
+  if (!dirHandle) return;
+  if (autoBackupTimer) clearTimeout(autoBackupTimer);
+  autoBackupTimer = setTimeout(() => executarAutoBackup(false), 5000);
+}
+
+async function desativarPastaBackup() {
+  if (!confirm('Desativar backup automático em pasta? Os arquivos já salvos permanecem na pasta.')) return;
+  dirHandle = null;
+  await removerDirHandle();
+  delete estado.config.nomePastaBackup;
+  delete estado.config.ultimoAutoBackup;
+  salvar();
+  toast('Backup automático desativado');
+  atualizarStatusProtecoes();
+}
+
+// ---------- Camada 4: Quota de armazenamento ----------
+async function checarQuota() {
+  if (!('storage' in navigator) || !('estimate' in navigator.storage)) {
+    return null;
+  }
+  try {
+    const e = await navigator.storage.estimate();
+    return {
+      usado: e.usage || 0,
+      total: e.quota || 0,
+      pct: e.quota ? (e.usage / e.quota) * 100 : 0
+    };
+  } catch { return null; }
+}
+
+// ---------- UI de status das proteções ----------
+async function atualizarStatusProtecoes() {
+  // Camada 1
+  const persist = await checarPersistencia();
+  const elPersist = document.getElementById('status-persist-valor');
+  const itemPersist = document.getElementById('status-persist');
+  const btnPersist = document.getElementById('btn-persist');
+  if (!persist.suportado) {
+    elPersist.innerHTML = '<span class="warn">Navegador não suporta</span>';
+    itemPersist.classList.add('atencao');
+    btnPersist.style.display = 'none';
+  } else if (persist.ativo) {
+    elPersist.innerHTML = '<span class="ok">Ativa</span>';
+    itemPersist.classList.remove('alerta', 'atencao');
+    btnPersist.style.display = 'none';
+  } else {
+    elPersist.innerHTML = '<span class="warn">Inativa</span>';
+    itemPersist.classList.add('atencao');
+    btnPersist.style.display = '';
+  }
+
+  // Camada 2 — snapshots
+  const snaps = listarSnapshots();
+  const elSnap = document.getElementById('status-snapshot-valor');
+  if (snaps.length === 0) {
+    elSnap.innerHTML = '<span class="warn">Nenhum snapshot</span>';
+  } else {
+    elSnap.innerHTML = `<span class="ok">${snaps.length} snapshot(s) — mais recente: ${snaps[0].data}</span>`;
+  }
+
+  // Camada 3 — pasta
+  const elPasta = document.getElementById('status-pasta-valor');
+  const itemPasta = document.getElementById('status-pasta');
+  const btnConf = document.getElementById('btn-configurar-pasta');
+  const btnAgora = document.getElementById('btn-backup-agora');
+  const btnDesat = document.getElementById('btn-desativar-pasta');
+  if (!('showDirectoryPicker' in window)) {
+    elPasta.innerHTML = '<span class="warn">Navegador não suporta (use Chrome/Edge/Opera)</span>';
+    itemPasta.classList.add('alerta');
+    btnConf.style.display = 'none';
+  } else if (!dirHandle) {
+    elPasta.innerHTML = '<span class="warn">Não configurado</span>';
+    itemPasta.classList.add('alerta');
+    btnConf.textContent = 'Configurar pasta';
+    btnConf.style.display = '';
+    btnAgora.style.display = 'none';
+    btnDesat.style.display = 'none';
+  } else {
+    const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+    const ult = estado.config.ultimoAutoBackup;
+    const ultTxt = ult ? `último em ${formatarData(ult)}` : 'pendente';
+    if (perm === 'granted') {
+      elPasta.innerHTML = `<span class="ok">Ativo em: ${dirHandle.name}</span><br><small>${ultTxt}</small>`;
+      itemPasta.classList.remove('alerta', 'atencao');
+    } else {
+      elPasta.innerHTML = `<span class="warn">Pasta: ${dirHandle.name} — permissão expirada</span><br><small>${ultTxt}</small>`;
+      itemPasta.classList.add('atencao');
+    }
+    btnConf.textContent = 'Trocar pasta';
+    btnConf.style.display = '';
+    btnAgora.style.display = '';
+    btnDesat.style.display = '';
+  }
+
+  // Camada 4 — quota
+  const q = await checarQuota();
+  const elQuota = document.getElementById('status-quota-valor');
+  const itemQuota = document.getElementById('status-quota');
+  if (!q) {
+    elQuota.textContent = 'Indisponível';
+  } else {
+    const usadoMB = (q.usado / 1024 / 1024).toFixed(2);
+    const totalMB = (q.total / 1024 / 1024).toFixed(0);
+    elQuota.innerHTML = `${usadoMB} MB de ${totalMB} MB (${q.pct.toFixed(2)}%)`;
+    itemQuota.classList.remove('alerta', 'atencao');
+    if (q.pct > 80) itemQuota.classList.add('alerta');
+    else if (q.pct > 60) itemQuota.classList.add('atencao');
+  }
+
+  // Banner de aviso
+  atualizarBannerAviso();
+}
+
+function renderListaSnapshots() {
+  const div = document.getElementById('lista-snapshots');
+  const snaps = listarSnapshots();
+  if (snaps.length === 0) {
+    div.innerHTML = '<div class="snap-item">Nenhum snapshot disponível</div>';
+  } else {
+    div.innerHTML = snaps.map(s =>
+      `<div class="snap-item">
+        <span>${s.data} — ${s.processos} processos · gerado em ${formatarData(s.ts)}</span>
+        <button class="btn pequeno secundario" onclick="restaurarSnapshot('${s.chave}')">Restaurar</button>
+      </div>`
+    ).join('');
+  }
+  div.style.display = div.style.display === 'none' ? 'block' : 'none';
+}
+
+// ---------- Banner de aviso ----------
+const BANNER_DISMISS_KEY = 'coag_banner_dismissed_ate';
+function atualizarBannerAviso() {
+  const banner = document.getElementById('banner-aviso');
+  const texto = document.getElementById('banner-aviso-texto');
+  const dismissAte = parseInt(localStorage.getItem(BANNER_DISMISS_KEY) || '0', 10);
+  if (Date.now() < dismissAte) {
+    banner.classList.remove('visivel');
+    return;
+  }
+  // Mostra banner se: pasta não configurada OU último auto-backup > 7 dias
+  const semPasta = !dirHandle && ('showDirectoryPicker' in window);
+  const ultBackup = estado.config.ultimoAutoBackup;
+  const muitoTempoSemBackup = ultBackup && (Date.now() - ultBackup) > 7 * 24 * 60 * 60 * 1000;
+  if (semPasta) {
+    texto.textContent = 'Sem backup automático configurado. Risco de perda de dados em caso de limpeza do navegador.';
+    banner.classList.add('visivel');
+  } else if (muitoTempoSemBackup) {
+    texto.textContent = `Último backup automático há mais de 7 dias (${formatarData(ultBackup)}). Verifique se a permissão da pasta está ativa.`;
+    banner.classList.add('visivel');
+  } else {
+    banner.classList.remove('visivel');
+  }
+}
+function dispensarBanner() {
+  // Dispensa por 24 horas
+  localStorage.setItem(BANNER_DISMISS_KEY, (Date.now() + 24 * 60 * 60 * 1000).toString());
+  document.getElementById('banner-aviso').classList.remove('visivel');
+}
+
+// ---------- Service Worker (PWA) ----------
+async function registrarServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  // Não tenta registrar em file:// (apenas em http/https)
+  if (location.protocol === 'file:') return;
+  try {
+    await navigator.serviceWorker.register('sw.js');
+  } catch (e) {
+    console.warn('Falha ao registrar service worker:', e);
+  }
+}
+
+// ============================================================================
+
+// ============================================================================
+//  TABS E EVENTOS
+// ============================================================================
+function ativarTab(nome) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === nome));
+  document.querySelectorAll('.tab-pane').forEach(s => s.classList.toggle('active', s.id === 'tab-' + nome));
+}
+
+function preencherFiltroFiscal() {
+  const sel = document.getElementById('filtro-fiscal');
+  const fiscais = [...FISCAIS_PRIMARIOS, MATHEUS];
+  sel.innerHTML = '<option value="">Todos</option>' +
+    fiscais.map(f => `<option value="${f}">${f}</option>`).join('');
+}
+
+function renderTudo() {
+  renderDashboard();
+  renderProcessos();
+  renderFilas();
+  atualizarPrecalculo();
+}
+
+// ============================================================================
+//  INICIALIZAÇÃO
+// ============================================================================
+document.addEventListener('DOMContentLoaded', async () => {
+  carregar();
+  preencherFiltroFiscal();
+  carregarConfigUI();
+  renderTudo();
+
+  // Restaura handle de pasta de backup se houver
+  dirHandle = await lerDirHandle();
+  await atualizarStatusProtecoes();
+
+  // Service worker
+  registrarServiceWorker();
+
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.addEventListener('click', () => {
+      ativarTab(b.dataset.tab);
+      if (b.dataset.tab === 'backup') atualizarStatusProtecoes();
+    }));
+
+  document.getElementById('btn-distribuir').addEventListener('click', distribuirNovo);
+  document.getElementById('btn-limpar').addEventListener('click', () => {
+    document.getElementById('form-novo').reset();
+    document.getElementById('painel-distribuicao').style.display = 'none';
+    atualizarPrecalculo();
+  });
+
+  ['campo-tipo','campo-A','campo-B','campo-C','campo-D','campo-E']
+    .forEach(id => document.getElementById(id).addEventListener('change', atualizarPrecalculo));
+
+  ['filtro-fiscal','filtro-nivel','filtro-status','filtro-tipo','filtro-busca']
+    .forEach(id => document.getElementById(id).addEventListener('input', renderProcessos));
+
+  document.getElementById('modal-cancelar').addEventListener('click', fecharEdicao);
+  document.getElementById('modal-salvar').addEventListener('click', salvarEdicao);
+  document.getElementById('modal-edicao').addEventListener('click', e => {
+    if (e.target.id === 'modal-edicao') fecharEdicao();
+  });
+
+  document.getElementById('btn-salvar-config').addEventListener('click', salvarConfig);
+  document.getElementById('btn-export-json').addEventListener('click', exportarJSON);
+  document.getElementById('btn-export-csv').addEventListener('click', exportarCSV);
+  document.getElementById('btn-import').addEventListener('click', importarJSON);
+  document.getElementById('btn-reset').addEventListener('click', resetarTudo);
+  document.getElementById('btn-exemplo').addEventListener('click', inserirExemplos);
+  document.getElementById('btn-recarregar-seed').addEventListener('click', () => {
+    if (!confirm('Substituir TODO o estado atual pelo snapshot da planilha 2026? Irreversível sem backup.')) return;
+    if (!confirm('Confirme novamente: descartar dados locais e recarregar snapshot?')) return;
+    popularComSeed();
+    salvar();
+    renderTudo();
+    toast('Snapshot da planilha 2026 recarregado');
+  });
+
+  // Proteções de dados
+  document.getElementById('btn-persist').addEventListener('click', solicitarPersistencia);
+  document.getElementById('btn-ver-snapshots').addEventListener('click', renderListaSnapshots);
+  document.getElementById('btn-configurar-pasta').addEventListener('click', configurarPastaBackup);
+  document.getElementById('btn-backup-agora').addEventListener('click', async () => {
+    const ok = await executarAutoBackup(true);
+    if (ok) toast('Backup salvo na pasta');
+  });
+  document.getElementById('btn-desativar-pasta').addEventListener('click', desativarPastaBackup);
+
+  // Banner
+  document.getElementById('banner-aviso-acao').addEventListener('click', () => {
+    ativarTab('backup');
+    document.getElementById('btn-configurar-pasta').focus();
+  });
+  document.getElementById('banner-aviso-fechar').addEventListener('click', dispensarBanner);
+});
+
+// Expor handlers usados em onclick inline
+window.abrirEdicao = abrirEdicao;
+window.avancarStatus = avancarStatus;
+window.arquivarProcesso = arquivarProcesso;
+window.desarquivarProcesso = desarquivarProcesso;
+window.excluirProcesso = excluirProcesso;
+window.restaurarSnapshot = restaurarSnapshot;
+</script>
+</body>
+</html>
