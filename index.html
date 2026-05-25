@@ -240,7 +240,8 @@
   .badge.status-elaboracao { background: #e8efe9; color: var(--verde-dpe); border-color: var(--verde-claro); }
   .badge.status-revisao { background: #fdf4d9; color: #6b6020; border-color: var(--amarelo-alerta); }
   .badge.status-aprovacao { background: #d9e5f0; color: var(--azul-info); border-color: var(--azul-info); }
-  .badge.status-aprovado { background: #d9ecdf; color: #2a6a44; border-color: #2a6a44; }
+  .badge.status-aprovado-tramite { background: #e8f0d9; color: #5a7028; border-color: #8a9550; }
+  .badge.status-concluido { background: #c8dfd0; color: #1f4332; border-color: #2a6a44; font-weight: bold; }
   .badge.status-arquivado { background: #ebe7dd; color: #6a6457; border-color: #a8a298; }
   .badge.status-bloqueado { background: #f0e0dd; color: var(--vermelho-alerta); border-color: var(--vermelho-alerta); }
   .badge.tipo {
@@ -613,7 +614,8 @@
           <option value="elaboracao">Em elaboração</option>
           <option value="revisao_matheus">Revisão (Matheus)</option>
           <option value="aprovacao_kerolaine">Aprovação (Kerolaine)</option>
-          <option value="aprovado">Aprovado</option>
+          <option value="aprovado_tramite">Aprovado (em trâmite)</option>
+          <option value="concluido">Concluído</option>
           <option value="arquivado">Arquivado</option>
           <option value="bloqueado_externo">Bloqueado externo</option>
         </select>
@@ -798,14 +800,25 @@
 
       <h3>Algoritmo de distribuição</h3>
       <ol style="font-size:0.9rem;">
-        <li>Soma de SCT ativa por fiscal primário (Liza, Thiago, Lucas) — exclui processos em status <em>bloqueado externo</em>, <em>aprovado</em> e <em>arquivado</em>.</li>
+        <li>Soma de SCT ativa por fiscal primário (Liza, Thiago, Lucas) — exclui processos em status <em>bloqueado externo</em>, <em>aprovado em trâmite</em>, <em>concluído</em> e <em>arquivado</em>.</li>
         <li>Atribui ao fiscal com menor Σ SCT.</li>
         <li>Empate → desempate por rotação: vence quem recebeu o último processo há mais tempo (ou nunca recebeu).</li>
         <li>Se todos os primários ≥ limiar (configurável, padrão 12 SCT) → Matheus entra como suplente de elaboração.</li>
-        <li><strong>Completo / Apenas TR</strong>: TR concluído → fila Matheus (revisão, SLA configurável) → fila Kerolaine (aprovação, SLA configurável) → aprovado.</li>
-        <li><strong>Aditivo / Apostilamento</strong>: elaboração → concluído. Fluxo direto, sem revisão Matheus nem aprovação Kerolaine — o servidor designado é responsável integral pela formalização.</li>
-        <li><strong>Arquivado</strong>: encerramento sem conclusão normal (perda de objeto, oportunidade fracassada, sobrestamento permanente, cancelamento). Não soma carga; preservado para auditoria.</li>
+        <li><strong>Completo / Apenas TR</strong>: elaboração → revisão Matheus → aprovação Kerolaine → <em>aprovado em trâmite</em> → <em>concluído</em>.</li>
+        <li><strong>Aditivo / Apostilamento</strong>: elaboração → <em>concluído</em>. Fluxo direto — servidor designado é responsável integral.</li>
       </ol>
+
+      <h3>Estados terminais e suas semânticas</h3>
+      <table>
+        <thead>
+          <tr><th>Status</th><th>Significado</th><th>Pode voltar?</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Aprovado em trâmite</strong></td><td>TR foi aprovado pela Kerolaine, mas o processo continua tramitando (CL, AJ, DPGE, homologação, parecer jurídico). Não consome carga ativa.</td><td>Sim — via "Retornar para diligência". Reatribui automaticamente ao fiscal de elaboração original.</td></tr>
+          <tr><td><strong>Concluído</strong></td><td>Objeto plenamente atingido: contrato firmado, ARP publicada, OS emitida, inexigibilidade efetivada.</td><td>Apenas editando manualmente.</td></tr>
+          <tr><td><strong>Arquivado</strong></td><td>Encerramento sem conclusão normal: perda de objeto, oportunidade fracassada, sobrestamento permanente, cancelamento.</td><td>Sim — via "Desarquivar". Permite escolher para qual status retornar.</td></tr>
+        </tbody>
+      </table>
 
       <div class="nota">
         <strong>Ressalvas operacionais:</strong> a planilha histórica registra resultado, não carga real — o sistema só reflete a realidade se alimentado prospectivamente. A pontuação dos processos pré-existentes é estimativa: revise os scores antes de operar produtivamente. O gargalo de aprovação exclusiva da coordenadoria é tornado visível pelo SLA, mas não resolvido pelo sistema. <strong>localStorage é por navegador</strong> — para uso concorrente em rede é necessário backend (Sheets API, SQLite+servidor, Airtable, Notion).
@@ -951,7 +964,8 @@ const STATUS_ROTULOS = {
   elaboracao:           { texto: 'Em elaboração',         classe: 'status-elaboracao' },
   revisao_matheus:      { texto: 'Revisão (Matheus)',     classe: 'status-revisao' },
   aprovacao_kerolaine:  { texto: 'Aprovação (Kerolaine)', classe: 'status-aprovacao' },
-  aprovado:             { texto: 'Aprovado',              classe: 'status-aprovado' },
+  aprovado_tramite:     { texto: 'Aprovado (em trâmite)', classe: 'status-aprovado-tramite' },
+  concluido:            { texto: 'Concluído',             classe: 'status-concluido' },
   arquivado:            { texto: 'Arquivado',             classe: 'status-arquivado' },
   bloqueado_externo:    { texto: 'Bloqueado externo',     classe: 'status-bloqueado' }
 };
@@ -976,13 +990,13 @@ let estado = {
 // ============================================================================
 const SEED_PROCESSOS_2026 = [
   // CONTRATAÇÕES FINALIZADAS 2026 (histórico institucional — aprovados)
-  {sei:'06410002.000592/2025-61', objeto:'Serviços de RECEPCIONISTAS — Contrato 02/2026', fiscal:'Matheus', tipo:'completo', A:5,B:1,C:0,D:0,E:1, status:'aprovado', aguarda:null},
-  {sei:'000110000068.000005/2026-49', objeto:'Capacitação online — Reforma Tributária — Inexigibilidade 01/2026', fiscal:'Lucas', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'aprovado', aguarda:null},
-  {sei:'06410002.003597/2024-64', objeto:'Fotografia, filmagem e transmissão de eventos — PE 21/2025 / ARP 02-04/2026', fiscal:'Liza', tipo:'completo', A:3,B:1,C:1,D:0,E:0, status:'aprovado', aguarda:null},
-  {sei:'000110000071.000003/2025-10', objeto:'Manutenção predial — PE 23/2025 / Contratos 05 e 06/2026', fiscal:'Matheus', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'aprovado', aguarda:null},
-  {sei:'06410002.000093/2025-73', objeto:'Desinsetização — Contrato 07/2026', fiscal:'Thiago', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'aprovado', aguarda:null},
-  {sei:'000110000061.000024/2026-35', objeto:'Evento — 9º Encontro Grandes Nomes em Compras — Inexigibilidade 03/2026', fiscal:'Matheus', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'aprovado', aguarda:null},
-  {sei:'000110000060.000157/2025-31', objeto:'Contratação de ferramenta de IA — Inexigibilidade 02/2026 / Contrato 09/2026', fiscal:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'aprovado', aguarda:null},
+  {sei:'06410002.000592/2025-61', objeto:'Serviços de RECEPCIONISTAS — Contrato 02/2026', fiscal:'Matheus', tipo:'completo', A:5,B:1,C:0,D:0,E:1, status:'concluido', aguarda:null},
+  {sei:'000110000068.000005/2026-49', objeto:'Capacitação online — Reforma Tributária — Inexigibilidade 01/2026', fiscal:'Lucas', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'concluido', aguarda:null},
+  {sei:'06410002.003597/2024-64', objeto:'Fotografia, filmagem e transmissão de eventos — PE 21/2025 / ARP 02-04/2026', fiscal:'Liza', tipo:'completo', A:3,B:1,C:1,D:0,E:0, status:'concluido', aguarda:null},
+  {sei:'000110000071.000003/2025-10', objeto:'Manutenção predial — PE 23/2025 / Contratos 05 e 06/2026', fiscal:'Matheus', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'concluido', aguarda:null},
+  {sei:'06410002.000093/2025-73', objeto:'Desinsetização — Contrato 07/2026', fiscal:'Thiago', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'concluido', aguarda:null},
+  {sei:'000110000061.000024/2026-35', objeto:'Evento — 9º Encontro Grandes Nomes em Compras — Inexigibilidade 03/2026', fiscal:'Matheus', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'concluido', aguarda:null},
+  {sei:'000110000060.000157/2025-31', objeto:'Contratação de ferramenta de IA — Inexigibilidade 02/2026 / Contrato 09/2026', fiscal:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'concluido', aguarda:null},
   // ARQUIVADOS em 2026 (sem conclusão normal)
   {sei:'06410002.000901/2025-01', objeto:'Fornecimento de licenças de segurança (firewall) — Arquivado em 29/01/2026', fiscal:null, tipo:'apenas_tr', A:4,B:1,C:1,D:1,E:1, status:'arquivado', aguarda:null},
   {sei:'000110000061.000018/2026-88', objeto:'Limpeza Sede via Contrata+Brasil — Oportunidade fracassada / arquivado por baixa prioridade', fiscal:null, tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'arquivado', aguarda:null},
@@ -1086,9 +1100,23 @@ function carregar() {
       migrados++;
     }
   });
-  if (migrados > 0) {
+  // Migração de status: 'aprovado' (legado) → 'concluido' (aditivos) ou 'aprovado_tramite' (resto)
+  let migradosStatus = 0;
+  estado.processos.forEach(p => {
+    if (p.status === 'aprovado') {
+      p.status = p.tipoDemanda === 'aditivo' ? 'concluido' : 'aprovado_tramite';
+      p.historico = p.historico || [];
+      p.historico.push({
+        ts: Date.now(),
+        evento: 'Migração: status "aprovado" reclassificado como "' + STATUS_ROTULOS[p.status].texto + '"'
+      });
+      migradosStatus++;
+    }
+  });
+  if (migrados > 0 || migradosStatus > 0) {
     salvar();
-    console.info(`Migração: ${migrados} aditivo(s) atualizado(s) para SCT = ${TIPOS_DEMANDA.aditivo.sctFixo}`);
+    if (migrados > 0) console.info(`Migração: ${migrados} aditivo(s) atualizado(s) para SCT = ${TIPOS_DEMANDA.aditivo.sctFixo}`);
+    if (migradosStatus > 0) console.info(`Migração: ${migradosStatus} processo(s) com status legado "aprovado" reclassificados`);
   }
   // Primeira execução: popula com o snapshot da planilha 2026
   if (estado.processos.length === 0) {
@@ -1138,7 +1166,8 @@ function calcularSCT(tipo, dim) {
 function somaSCTAtiva(fiscal) {
   return estado.processos
     .filter(p => p.fiscalElaboracao === fiscal
-              && p.status !== 'aprovado'
+              && p.status !== 'aprovado_tramite'
+              && p.status !== 'concluido'
               && p.status !== 'arquivado'
               && p.status !== 'bloqueado_externo')
     .reduce((soma, p) => soma + (p.sctFinal || 0), 0);
@@ -1211,11 +1240,17 @@ function toast(msg, erro = false) {
 // ============================================================================
 function renderDashboard() {
   const total = estado.processos.length;
-  const ativos = estado.processos.filter(p => p.status !== 'aprovado' && p.status !== 'arquivado' && p.status !== 'bloqueado_externo').length;
+  const ativos = estado.processos.filter(p =>
+    p.status !== 'aprovado_tramite' &&
+    p.status !== 'concluido' &&
+    p.status !== 'arquivado' &&
+    p.status !== 'bloqueado_externo'
+  ).length;
   const bloqueados = estado.processos.filter(p => p.status === 'bloqueado_externo').length;
   const filaMatheus = estado.processos.filter(p => p.status === 'revisao_matheus').length;
   const filaKerolaine = estado.processos.filter(p => p.status === 'aprovacao_kerolaine').length;
-  const aprovados = estado.processos.filter(p => p.status === 'aprovado').length;
+  const emTramite = estado.processos.filter(p => p.status === 'aprovado_tramite').length;
+  const concluidos = estado.processos.filter(p => p.status === 'concluido').length;
   const arquivados = estado.processos.filter(p => p.status === 'arquivado').length;
 
   const cargasPrimarios = {};
@@ -1228,7 +1263,7 @@ function renderDashboard() {
     <div class="card">
       <div class="rotulo">Processos totais</div>
       <div class="valor">${total}</div>
-      <div class="detalhe">${ativos} ativos · ${aprovados} aprovados · ${arquivados} arquivados</div>
+      <div class="detalhe">${ativos} ativos · ${emTramite} aprov. em trâmite · ${concluidos} concluídos · ${arquivados} arquivados</div>
     </div>
     <div class="card ${bloqueados > 0 ? 'atencao' : ''}">
       <div class="rotulo">Bloqueados externos</div>
@@ -1337,15 +1372,21 @@ function renderProcessos() {
     const statusInfo = STATUS_ROTULOS[p.status] || { texto: p.status, classe: '' };
     const nivelClasse = (p.nivelCodigo || 'n1').toLowerCase();
     const ehAditivoAtivo = p.tipoDemanda === 'aditivo' && p.status === 'elaboracao';
+    const ehAprovadoTramite = p.status === 'aprovado_tramite';
     const ehArquivado = p.status === 'arquivado';
-    const ehTerminal = p.status === 'aprovado' || p.status === 'arquivado';
+    const ehTerminal = p.status === 'concluido' || p.status === 'arquivado';
     let acoesExtra = '';
     if (ehAditivoAtivo) {
-      acoesExtra += `<button class="btn pequeno" onclick="avancarStatus('${p.id}', 'aprovado')">Concluir</button>`;
+      // Aditivo concluído vai direto para concluido (sem trâmite pós-aprovação)
+      acoesExtra += `<button class="btn pequeno" onclick="avancarStatus('${p.id}', 'concluido')">Concluir</button>`;
+    }
+    if (ehAprovadoTramite) {
+      acoesExtra += `<button class="btn pequeno" onclick="concluirContratacao('${p.id}')">Concluir contratação</button>`;
+      acoesExtra += `<button class="btn pequeno secundario" onclick="retornarDiligencia('${p.id}')">Retornar p/ diligência</button>`;
     }
     if (ehArquivado) {
       acoesExtra += `<button class="btn pequeno secundario" onclick="desarquivarProcesso('${p.id}')">Desarquivar</button>`;
-    } else if (!ehTerminal) {
+    } else if (!ehTerminal && !ehAprovadoTramite) {
       acoesExtra += `<button class="btn pequeno secundario" onclick="arquivarProcesso('${p.id}')">Arquivar</button>`;
     }
     return `
@@ -1398,8 +1439,8 @@ function renderFilas() {
       } else if (dias >= slaConfig - 1) {
         classe = 'sla-amarelo';
       }
-      const acaoTexto = proximoStatus === 'aprovado'
-        ? 'Aprovar (finalizar)'
+      const acaoTexto = proximoStatus === 'aprovado_tramite'
+        ? 'Aprovar TR (segue trâmite)'
         : `Encaminhar para ${proximoNome}`;
       return `
         <div class="fila-item ${classe}">
@@ -1418,7 +1459,7 @@ function renderFilas() {
   };
 
   renderFila('revisao_matheus', estado.config.slaMatheus, document.getElementById('fila-matheus'), 'aprovacao_kerolaine', 'Kerolaine');
-  renderFila('aprovacao_kerolaine', estado.config.slaKerolaine, document.getElementById('fila-kerolaine'), 'aprovado', 'Aprovado');
+  renderFila('aprovacao_kerolaine', estado.config.slaKerolaine, document.getElementById('fila-kerolaine'), 'aprovado_tramite', 'Aprovado-trâmite');
 }
 
 // ============================================================================
@@ -1494,6 +1535,67 @@ function avancarStatus(id, novoStatus) {
   toast('Status atualizado');
 }
 
+function concluirContratacao(id) {
+  const p = estado.processos.find(x => x.id === id);
+  if (!p || p.status !== 'aprovado_tramite') return;
+  const detalhe = prompt(
+    `Marcar contratação como concluída para ${p.sei || '(sem SEI)'}?\n\n` +
+    'Use este status quando o objeto do processo foi plenamente atingido: contrato firmado, ' +
+    'ARP publicada, inexigibilidade efetivada, OS emitida etc.\n\n' +
+    'Identificador da contratação (Contrato nº, ARP nº, Inexigibilidade nº) — opcional:',
+    ''
+  );
+  if (detalhe === null) return;
+  p.status = 'concluido';
+  p.ultimaAtualizacao = Date.now();
+  p.aguardandoExterno = null;
+  p.historico = p.historico || [];
+  p.historico.push({
+    ts: Date.now(),
+    evento: 'Contratação concluída' + (detalhe ? ' — ' + detalhe : '')
+  });
+  if (detalhe) {
+    p.observacoes = (p.observacoes ? p.observacoes + '\n\n' : '') +
+      `[Concluído em ${new Date().toLocaleDateString('pt-BR')}] ${detalhe}`;
+  }
+  salvar();
+  renderTudo();
+  toast('Processo concluído');
+}
+
+function retornarDiligencia(id) {
+  const p = estado.processos.find(x => x.id === id);
+  if (!p || p.status !== 'aprovado_tramite') return;
+  if (!p.fiscalElaboracao) {
+    toast('Processo sem fiscal de elaboração registrado — edite primeiro', true);
+    return;
+  }
+  const motivo = prompt(
+    `Retornar ${p.sei || '(sem SEI)'} para diligência?\n\n` +
+    `Será reatribuído ao fiscal de elaboração original (${p.fiscalElaboracao}) ` +
+    'e voltará a contar como carga ativa.\n\n' +
+    'Motivo / origem da diligência (recomendado):',
+    ''
+  );
+  if (motivo === null) return;
+  p.status = 'elaboracao';
+  p.ultimaAtualizacao = Date.now();
+  p.entrouFilaEm = null;
+  p.aguardandoExterno = null;
+  p.historico = p.historico || [];
+  p.historico.push({
+    ts: Date.now(),
+    evento: `Retornado para diligência → ${p.fiscalElaboracao}` + (motivo ? ' — ' + motivo : '')
+  });
+  if (motivo) {
+    p.observacoes = (p.observacoes ? p.observacoes + '\n\n' : '') +
+      `[Diligência em ${new Date().toLocaleDateString('pt-BR')}] ${motivo}`;
+  }
+  salvar();
+  renderTudo();
+  toast(`Diligência registrada — atribuída a ${p.fiscalElaboracao}`);
+}
+
 function arquivarProcesso(id) {
   const p = estado.processos.find(x => x.id === id);
   if (!p) return;
@@ -1526,36 +1628,42 @@ function arquivarProcesso(id) {
 function desarquivarProcesso(id) {
   const p = estado.processos.find(x => x.id === id);
   if (!p || p.status !== 'arquivado') return;
-  // Quatro estados possíveis de retorno; pergunta ao usuário
   const opcoes = [
     '1 — Em elaboração (volta para o fiscal)',
     '2 — Bloqueado externo (aguardando retorno)',
     '3 — Revisão (Matheus)',
-    '4 — Aprovação (Kerolaine)'
+    '4 — Aprovação (Kerolaine)',
+    '5 — Aprovado em trâmite',
+    '6 — Concluído'
   ].join('\n');
   const escolha = prompt(
     `Desarquivar processo ${p.sei || '(sem SEI)'}.\n\n` +
     'Para qual status deve voltar?\n\n' + opcoes + '\n\n' +
-    'Digite o número (1-4) ou cancele para abortar:',
+    'Digite o número (1-6) ou cancele para abortar:',
     '1'
   );
   if (escolha === null) return;
-  const mapaStatus = { '1': 'elaboracao', '2': 'bloqueado_externo', '3': 'revisao_matheus', '4': 'aprovacao_kerolaine' };
+  const mapaStatus = {
+    '1': 'elaboracao',
+    '2': 'bloqueado_externo',
+    '3': 'revisao_matheus',
+    '4': 'aprovacao_kerolaine',
+    '5': 'aprovado_tramite',
+    '6': 'concluido'
+  };
   const novoStatus = mapaStatus[escolha.trim()];
   if (!novoStatus) {
     toast('Opção inválida — operação cancelada', true);
     return;
   }
-  // Se for bloqueado externo, pergunta por qual setor
   let aguardando = null;
   if (novoStatus === 'bloqueado_externo') {
     const setor = prompt('Aguardando qual setor externo? (CEAP, CTI, CCSC, AJ, DPGE ou outro)', '');
     if (setor === null) return;
     aguardando = setor.trim() || null;
   }
-  // Se for revisão ou aprovação, garante que tenha fiscal atribuído
-  if ((novoStatus === 'revisao_matheus' || novoStatus === 'aprovacao_kerolaine') && !p.fiscalElaboracao) {
-    toast('Processo precisa ter fiscal de elaboração antes de ir para revisão/aprovação. Edite primeiro.', true);
+  if ((novoStatus === 'revisao_matheus' || novoStatus === 'aprovacao_kerolaine' || novoStatus === 'aprovado_tramite') && !p.fiscalElaboracao) {
+    toast('Processo precisa ter fiscal de elaboração antes desse status. Edite primeiro.', true);
     return;
   }
   p.status = novoStatus;
@@ -2308,6 +2416,8 @@ window.abrirEdicao = abrirEdicao;
 window.avancarStatus = avancarStatus;
 window.arquivarProcesso = arquivarProcesso;
 window.desarquivarProcesso = desarquivarProcesso;
+window.concluirContratacao = concluirContratacao;
+window.retornarDiligencia = retornarDiligencia;
 window.excluirProcesso = excluirProcesso;
 window.restaurarSnapshot = restaurarSnapshot;
 </script>
