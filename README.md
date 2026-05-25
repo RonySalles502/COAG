@@ -113,7 +113,7 @@ JSON exportável tem o formato:
       "sctBase": 8,
       "modificador": 1.0,
       "sctFinal": 8,
-      "fiscalElaboracao": "Liza" | "Thiago" | "Lucas" | "Matheus" | null,
+      "servidorElaboracao": "Liza" | "Thiago" | "Lucas" | "Matheus" | null,
       "status": "elaboracao" | "revisao_matheus" | "aprovacao_kerolaine" | "aprovado" | "bloqueado_externo",
       "aguardandoExterno": "CEAP" | "CTI" | "CCSC" | "Outro" | null,
       "observacoes": "...",

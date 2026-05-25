@@ -154,18 +154,18 @@
     padding: 1rem;
     margin-bottom: 1.5rem;
   }
-  .barra-fiscal {
+  .barra-servidor {
     display: grid;
     grid-template-columns: 110px 1fr 70px;
     align-items: center;
     gap: 0.75rem;
     margin-bottom: 0.5rem;
   }
-  .barra-fiscal .nome {
+  .barra-servidor .nome {
     font-weight: bold;
     font-size: 0.9rem;
   }
-  .barra-fiscal .nome small {
+  .barra-servidor .nome small {
     display: block;
     font-weight: normal;
     font-style: italic;
@@ -194,7 +194,7 @@
     background: var(--vermelho-alerta);
     z-index: 2;
   }
-  .barra-fiscal .pct {
+  .barra-servidor .pct {
     font-size: 0.85rem;
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -444,7 +444,7 @@
   }
   .toast.visivel { opacity: 1; transform: translateY(0); }
   .toast.erro { background: var(--vermelho-alerta); }
-  /* Tabela de fiscais SCT */
+  /* Tabela de servidores SCT */
   .legenda-config {
     font-size: 0.8rem;
     color: var(--tinta-suave);
@@ -580,7 +580,7 @@
     <h2>Visão Geral da Carga</h2>
     <div class="cards-grid" id="cards-resumo"></div>
 
-    <h3>Distribuição de SCT por Fiscal (carga ativa, exclui bloqueados externos)</h3>
+    <h3>Distribuição de SCT por Servidor (carga ativa, exclui bloqueados externos)</h3>
     <div class="barras-carga" id="barras-carga"></div>
 
     <h3>Estado de Matheus</h3>
@@ -592,8 +592,8 @@
     <h2>Processos Cadastrados</h2>
     <div class="filtros">
       <div>
-        <label>Filtrar por fiscal</label>
-        <select id="filtro-fiscal">
+        <label>Filtrar por servidor</label>
+        <select id="filtro-servidor">
           <option value="">Todos</option>
         </select>
       </div>
@@ -643,7 +643,7 @@
             <th>Tipo</th>
             <th>Nível</th>
             <th class="num">SCT</th>
-            <th>Fiscal</th>
+            <th>Servidor</th>
             <th>Status</th>
             <th>Aguarda</th>
             <th>Atualizado</th>
@@ -800,8 +800,8 @@
 
       <h3>Algoritmo de distribuição</h3>
       <ol style="font-size:0.9rem;">
-        <li>Soma de SCT ativa por fiscal primário (Liza, Thiago, Lucas) — exclui processos em status <em>bloqueado externo</em>, <em>aprovado em trâmite</em>, <em>concluído</em> e <em>arquivado</em>.</li>
-        <li>Atribui ao fiscal com menor Σ SCT.</li>
+        <li>Soma de SCT ativa por servidor primário (Liza, Thiago, Lucas) — exclui processos em status <em>bloqueado externo</em>, <em>aprovado em trâmite</em>, <em>concluído</em> e <em>arquivado</em>.</li>
+        <li>Atribui ao servidor com menor Σ SCT.</li>
         <li>Empate → desempate por rotação: vence quem recebeu o último processo há mais tempo (ou nunca recebeu).</li>
         <li>Se todos os primários ≥ limiar (configurável, padrão 12 SCT) → Matheus entra como suplente de elaboração.</li>
         <li><strong>Completo / Apenas TR</strong>: elaboração → revisão Matheus → aprovação Kerolaine → <em>aprovado em trâmite</em> → <em>concluído</em>.</li>
@@ -814,7 +814,7 @@
           <tr><th>Status</th><th>Significado</th><th>Pode voltar?</th></tr>
         </thead>
         <tbody>
-          <tr><td><strong>Aprovado em trâmite</strong></td><td>TR foi aprovado pela Kerolaine, mas o processo continua tramitando (CL, AJ, DPGE, homologação, parecer jurídico). Não consome carga ativa.</td><td>Sim — via "Retornar para diligência". Reatribui automaticamente ao fiscal de elaboração original.</td></tr>
+          <tr><td><strong>Aprovado em trâmite</strong></td><td>TR foi aprovado pela Kerolaine, mas o processo continua tramitando (CL, AJ, DPGE, homologação, parecer jurídico). Não consome carga ativa.</td><td>Sim — via "Retornar para diligência". Reatribui automaticamente ao servidor de elaboração original.</td></tr>
           <tr><td><strong>Concluído</strong></td><td>Objeto plenamente atingido: contrato firmado, ARP publicada, OS emitida, inexigibilidade efetivada.</td><td>Apenas editando manualmente.</td></tr>
           <tr><td><strong>Arquivado</strong></td><td>Encerramento sem conclusão normal: perda de objeto, oportunidade fracassada, sobrestamento permanente, cancelamento.</td><td>Sim — via "Desarquivar". Permite escolher para qual status retornar.</td></tr>
         </tbody>
@@ -845,9 +845,9 @@
       </div>
       <button class="btn" id="btn-salvar-config">Salvar configuração</button>
 
-      <h3>Fiscais primários (pool de elaboração)</h3>
+      <h3>Servidores primários (pool de elaboração)</h3>
       <p class="legenda-config">A ordem é usada apenas como segundo desempate, depois da rotação por timestamp. Padrão: alfabético.</p>
-      <ul id="lista-fiscais" style="font-size:0.9rem;"></ul>
+      <ul id="lista-servidores" style="font-size:0.9rem;"></ul>
 
       <h3>Prioridade de Matheus</h3>
       <p class="legenda-config">
@@ -943,7 +943,7 @@
 // ============================================================================
 //  ESTADO E CONSTANTES
 // ============================================================================
-const FISCAIS_PRIMARIOS = ['Liza', 'Lucas', 'Thiago']; // alfabético
+const SERVIDORES_PRIMARIOS = ['Liza', 'Lucas', 'Thiago']; // alfabético
 const MATHEUS = 'Matheus';
 const KEROLAINE = 'Kerolaine';
 const STORAGE_KEY = 'coag_distribuicao_v2';
@@ -990,58 +990,58 @@ let estado = {
 // ============================================================================
 const SEED_PROCESSOS_2026 = [
   // CONTRATAÇÕES FINALIZADAS 2026 (histórico institucional — aprovados)
-  {sei:'06410002.000592/2025-61', objeto:'Serviços de RECEPCIONISTAS — Contrato 02/2026', fiscal:'Matheus', tipo:'completo', A:5,B:1,C:0,D:0,E:1, status:'concluido', aguarda:null},
-  {sei:'000110000068.000005/2026-49', objeto:'Capacitação online — Reforma Tributária — Inexigibilidade 01/2026', fiscal:'Lucas', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'concluido', aguarda:null},
-  {sei:'06410002.003597/2024-64', objeto:'Fotografia, filmagem e transmissão de eventos — PE 21/2025 / ARP 02-04/2026', fiscal:'Liza', tipo:'completo', A:3,B:1,C:1,D:0,E:0, status:'concluido', aguarda:null},
-  {sei:'000110000071.000003/2025-10', objeto:'Manutenção predial — PE 23/2025 / Contratos 05 e 06/2026', fiscal:'Matheus', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'concluido', aguarda:null},
-  {sei:'06410002.000093/2025-73', objeto:'Desinsetização — Contrato 07/2026', fiscal:'Thiago', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'concluido', aguarda:null},
-  {sei:'000110000061.000024/2026-35', objeto:'Evento — 9º Encontro Grandes Nomes em Compras — Inexigibilidade 03/2026', fiscal:'Matheus', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'concluido', aguarda:null},
-  {sei:'000110000060.000157/2025-31', objeto:'Contratação de ferramenta de IA — Inexigibilidade 02/2026 / Contrato 09/2026', fiscal:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'concluido', aguarda:null},
+  {sei:'06410002.000592/2025-61', objeto:'Serviços de RECEPCIONISTAS — Contrato 02/2026', servidor:'Matheus', tipo:'completo', A:5,B:1,C:0,D:0,E:1, status:'concluido', aguarda:null},
+  {sei:'000110000068.000005/2026-49', objeto:'Capacitação online — Reforma Tributária — Inexigibilidade 01/2026', servidor:'Lucas', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'concluido', aguarda:null},
+  {sei:'06410002.003597/2024-64', objeto:'Fotografia, filmagem e transmissão de eventos — PE 21/2025 / ARP 02-04/2026', servidor:'Liza', tipo:'completo', A:3,B:1,C:1,D:0,E:0, status:'concluido', aguarda:null},
+  {sei:'000110000071.000003/2025-10', objeto:'Manutenção predial — PE 23/2025 / Contratos 05 e 06/2026', servidor:'Matheus', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'concluido', aguarda:null},
+  {sei:'06410002.000093/2025-73', objeto:'Desinsetização — Contrato 07/2026', servidor:'Thiago', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'concluido', aguarda:null},
+  {sei:'000110000061.000024/2026-35', objeto:'Evento — 9º Encontro Grandes Nomes em Compras — Inexigibilidade 03/2026', servidor:'Matheus', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'concluido', aguarda:null},
+  {sei:'000110000060.000157/2025-31', objeto:'Contratação de ferramenta de IA — Inexigibilidade 02/2026 / Contrato 09/2026', servidor:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'concluido', aguarda:null},
   // ARQUIVADOS em 2026 (sem conclusão normal)
-  {sei:'06410002.000901/2025-01', objeto:'Fornecimento de licenças de segurança (firewall) — Arquivado em 29/01/2026', fiscal:null, tipo:'apenas_tr', A:4,B:1,C:1,D:1,E:1, status:'arquivado', aguarda:null},
-  {sei:'000110000061.000018/2026-88', objeto:'Limpeza Sede via Contrata+Brasil — Oportunidade fracassada / arquivado por baixa prioridade', fiscal:null, tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'arquivado', aguarda:null},
-  {sei:'06410002.000599/2025-82', objeto:'Aquisição de pontos eletrônicos — Arquivado por perda do objeto (CTI desenvolveu sistema próprio)', fiscal:'Thiago', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'arquivado', aguarda:null},
-  {sei:'06410002.000559/2025-31', objeto:'Locação de imóvel — Nísia Floresta — SOBRESTADO até 11/11/2026', fiscal:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'arquivado', aguarda:null},
+  {sei:'06410002.000901/2025-01', objeto:'Fornecimento de licenças de segurança (firewall) — Arquivado em 29/01/2026', servidor:null, tipo:'apenas_tr', A:4,B:1,C:1,D:1,E:1, status:'arquivado', aguarda:null},
+  {sei:'000110000061.000018/2026-88', objeto:'Limpeza Sede via Contrata+Brasil — Oportunidade fracassada / arquivado por baixa prioridade', servidor:null, tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'arquivado', aguarda:null},
+  {sei:'06410002.000599/2025-82', objeto:'Aquisição de pontos eletrônicos — Arquivado por perda do objeto (CTI desenvolveu sistema próprio)', servidor:'Thiago', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'arquivado', aguarda:null},
+  {sei:'06410002.000559/2025-31', objeto:'Locação de imóvel — Nísia Floresta — SOBRESTADO até 11/11/2026', servidor:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'arquivado', aguarda:null},
   // EM FASE DE LICITAÇÃO
-  {sei:'06410002.001739/2024-59', objeto:'Locação de imóvel — São José do Campestre', fiscal:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
-  {sei:'06410002.005279/2024-38', objeto:'Aquisição de mobiliário — ARPs (parcialmente adjudicado)', fiscal:'Thiago', tipo:'completo', A:0,B:1,C:0,D:0,E:1, status:'bloqueado_externo', aguarda:'CL'},
-  {sei:'06410018.001498/2024-79', objeto:'Locação de imóvel — Currais Novos', fiscal:'Lucas', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'AJ'},
-  {sei:'06410018.000268/2024-92', objeto:'Aquisição de bandeiras', fiscal:'Lucas', tipo:'completo', A:0,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'CL'},
-  {sei:'06410002.003405/2024-10', objeto:'Aquisição de trocador de fraldas', fiscal:'Thiago', tipo:'completo', A:0,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
-  {sei:'06410002.003519/2024-60', objeto:'Confecção de carteiras de identidade e porta-documento', fiscal:'Liza', tipo:'completo', A:2,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'AJ'},
-  {sei:'000110000063.000019/2025-21', objeto:'Equipe terceirizada de TI (contrato atual vence 22/06)', fiscal:'Liza', tipo:'apenas_tr', A:5,B:2,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'AJ'},
+  {sei:'06410002.001739/2024-59', objeto:'Locação de imóvel — São José do Campestre', servidor:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'06410002.005279/2024-38', objeto:'Aquisição de mobiliário — ARPs (parcialmente adjudicado)', servidor:'Thiago', tipo:'completo', A:0,B:1,C:0,D:0,E:1, status:'bloqueado_externo', aguarda:'CL'},
+  {sei:'06410018.001498/2024-79', objeto:'Locação de imóvel — Currais Novos', servidor:'Lucas', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'AJ'},
+  {sei:'06410018.000268/2024-92', objeto:'Aquisição de bandeiras', servidor:'Lucas', tipo:'completo', A:0,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'CL'},
+  {sei:'06410002.003405/2024-10', objeto:'Aquisição de trocador de fraldas', servidor:'Thiago', tipo:'completo', A:0,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'06410002.003519/2024-60', objeto:'Confecção de carteiras de identidade e porta-documento', servidor:'Liza', tipo:'completo', A:2,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'AJ'},
+  {sei:'000110000063.000019/2025-21', objeto:'Equipe terceirizada de TI (contrato atual vence 22/06)', servidor:'Liza', tipo:'apenas_tr', A:5,B:2,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'AJ'},
   // EM TRÂMITE PARA LICITAÇÃO
-  {sei:'06410005.002513/2024-45', objeto:'Aquisição de Servidor + armazenamento', fiscal:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'},
-  {sei:'000110000065.000006/2025-32', objeto:'Serviços de multicloud (Nuvem)', fiscal:'Thiago', tipo:'apenas_tr', A:4,B:2,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'DPGE'},
-  {sei:'000110000076.000020/2025-15', objeto:'Licenças Microsoft Office (Contrato 19/2026)', fiscal:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'},
-  {sei:'06410018.001976/2024-41', objeto:'Cortinas persianas — retificação do TR', fiscal:'Thiago', tipo:'completo', A:0,B:1,C:1,D:0,E:0, status:'elaboracao', aguarda:null},
-  {sei:'06410018.001400/2024-83', objeto:'Locação de imóvel — Pendências', fiscal:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
-  {sei:'06410018.000295/2024-65', objeto:'Manutenção de equipamentos (microondas, cafeteira, liquidificador)', fiscal:'Lucas', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
-  {sei:'000110000062.000045/2025-60', objeto:'Chamamento público — Cooperativa de Materiais Recicláveis', fiscal:'Lucas', tipo:'completo', A:3,B:2,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
-  {sei:'06410018.001500/2024-18', objeto:'Locação de imóvel — Florânia', fiscal:'Lucas', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
-  {sei:'000110000061.000007/2026-06', objeto:'Serviços de ASG c/ acúmulo de copeiragem e sob demanda', fiscal:'Lucas', tipo:'completo', A:5,B:2,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'DPGE'},
-  {sei:'000110000070.000009/2026-88', objeto:'Adesão à plataforma eletrônica de Leilão', fiscal:'Thiago', tipo:'completo', A:3,B:2,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'06410005.002513/2024-45', objeto:'Aquisição de Servidor + armazenamento', servidor:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'},
+  {sei:'000110000065.000006/2025-32', objeto:'Serviços de multicloud (Nuvem)', servidor:'Thiago', tipo:'apenas_tr', A:4,B:2,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'000110000076.000020/2025-15', objeto:'Licenças Microsoft Office (Contrato 19/2026)', servidor:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'},
+  {sei:'06410018.001976/2024-41', objeto:'Cortinas persianas — retificação do TR', servidor:'Thiago', tipo:'completo', A:0,B:1,C:1,D:0,E:0, status:'elaboracao', aguarda:null},
+  {sei:'06410018.001400/2024-83', objeto:'Locação de imóvel — Pendências', servidor:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'06410018.000295/2024-65', objeto:'Manutenção de equipamentos (microondas, cafeteira, liquidificador)', servidor:'Lucas', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'000110000062.000045/2025-60', objeto:'Chamamento público — Cooperativa de Materiais Recicláveis', servidor:'Lucas', tipo:'completo', A:3,B:2,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'06410018.001500/2024-18', objeto:'Locação de imóvel — Florânia', servidor:'Lucas', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'000110000061.000007/2026-06', objeto:'Serviços de ASG c/ acúmulo de copeiragem e sob demanda', servidor:'Lucas', tipo:'completo', A:5,B:2,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'000110000070.000009/2026-88', objeto:'Adesão à plataforma eletrônica de Leilão', servidor:'Thiago', tipo:'completo', A:3,B:2,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
   // COAG (em elaboração ou em revisão)
-  {sei:'000110000066.000005/2025-88', objeto:'Alimentação preparada — Natal e RM', fiscal:'Liza', tipo:'completo', A:3,B:1,C:0,D:0,E:1, status:'revisao_matheus', aguarda:null},
-  {sei:'000110000061.000022/2026-46', objeto:'Serviços de psicologia', fiscal:'Thiago', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
-  {sei:'000110000066.000001/2026-81', objeto:'Estruturação do auditório', fiscal:'Lucas', tipo:'completo', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CCSC'},
-  {sei:'06410018.000560/2024-13', objeto:'Locação de imóvel — Parelhas (Chamamento 02/2026)', fiscal:'Matheus', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'elaboracao', aguarda:null},
-  {sei:'000110000063.000004/2026-44', objeto:'Antivírus — contrato atual vence 08/2026', fiscal:'Liza', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'},
-  {sei:'000110000061.000021/2026-00', objeto:'Locação de espaço para eventos (Comissão multifuncional)', fiscal:'Lucas', tipo:'completo', A:3,B:1,C:0,D:0,E:1, status:'elaboracao', aguarda:null},
-  {sei:'000110000061.000015/2025-63', objeto:'Manutenção de detector de metal', fiscal:'Liza', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'elaboracao', aguarda:null},
-  {sei:'SEM-SEI-ELEVADORES', objeto:'Manutenção de elevadores (sem SEI atribuído)', fiscal:null, tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'elaboracao', aguarda:null},
-  {sei:'000110000061.000027/2026-79', objeto:'Serviços terceirizados de vigilância armada', fiscal:'Liza', tipo:'completo', A:5,B:2,C:1,D:0,E:1, status:'elaboracao', aguarda:null},
+  {sei:'000110000066.000005/2025-88', objeto:'Alimentação preparada — Natal e RM', servidor:'Liza', tipo:'completo', A:3,B:1,C:0,D:0,E:1, status:'revisao_matheus', aguarda:null},
+  {sei:'000110000061.000022/2026-46', objeto:'Serviços de psicologia', servidor:'Thiago', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'000110000066.000001/2026-81', objeto:'Estruturação do auditório', servidor:'Lucas', tipo:'completo', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CCSC'},
+  {sei:'06410018.000560/2024-13', objeto:'Locação de imóvel — Parelhas (Chamamento 02/2026)', servidor:'Matheus', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'elaboracao', aguarda:null},
+  {sei:'000110000063.000004/2026-44', objeto:'Antivírus — contrato atual vence 08/2026', servidor:'Liza', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'},
+  {sei:'000110000061.000021/2026-00', objeto:'Locação de espaço para eventos (Comissão multifuncional)', servidor:'Lucas', tipo:'completo', A:3,B:1,C:0,D:0,E:1, status:'elaboracao', aguarda:null},
+  {sei:'000110000061.000015/2025-63', objeto:'Manutenção de detector de metal', servidor:'Liza', tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'elaboracao', aguarda:null},
+  {sei:'SEM-SEI-ELEVADORES', objeto:'Manutenção de elevadores (sem SEI atribuído)', servidor:null, tipo:'completo', A:3,B:1,C:0,D:0,E:0, status:'elaboracao', aguarda:null},
+  {sei:'000110000061.000027/2026-79', objeto:'Serviços terceirizados de vigilância armada', servidor:'Liza', tipo:'completo', A:5,B:2,C:1,D:0,E:1, status:'elaboracao', aguarda:null},
   // ETP — em fase de estudo técnico preliminar
-  {sei:'06410002.003917/2024-86', objeto:'Elaboração e atualização de LTCAT', fiscal:null, tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
-  {sei:'06410002.005555/2024-68', objeto:'Locação de imóvel — Sede Administrativa', fiscal:null, tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
-  {sei:'000110000061.000002/2025-94', objeto:'Aquisição de extintores', fiscal:null, tipo:'completo', A:0,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
-  {sei:'06410015.003445/2024-12', objeto:'Curso de capacitação — LGPD (sobrestado)', fiscal:'Lucas', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'CPPD'},
-  {sei:'06410002.002766/2024-49', objeto:'Locação de imóvel — Galpão (vigente até 06/10)', fiscal:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
-  {sei:'06410002.001599/2025-08', objeto:'Estruturação do Galpão', fiscal:'Thiago', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
-  {sei:'000110000835.000002/2026-77', objeto:'Aquisição de detectores de metal portáteis', fiscal:null, tipo:'apenas_tr', A:2,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
-  {sei:'SEM-SEI-BANCOPRECOS', objeto:'Banco de Preços (sem SEI registrado)', fiscal:null, tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'SPL'},
-  {sei:'000110000071.000006/2026-34', objeto:'Aquisição de equipamentos de ar-condicionado', fiscal:null, tipo:'apenas_tr', A:2,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
-  {sei:'000110000061.000011/2025-85', objeto:'Monitoramento de segurança (videomonitoramento)', fiscal:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'}
+  {sei:'06410002.003917/2024-86', objeto:'Elaboração e atualização de LTCAT', servidor:null, tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'06410002.005555/2024-68', objeto:'Locação de imóvel — Sede Administrativa', servidor:null, tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'000110000061.000002/2025-94', objeto:'Aquisição de extintores', servidor:null, tipo:'completo', A:0,B:1,C:1,D:0,E:0, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'06410015.003445/2024-12', objeto:'Curso de capacitação — LGPD (sobrestado)', servidor:'Lucas', tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'CPPD'},
+  {sei:'06410002.002766/2024-49', objeto:'Locação de imóvel — Galpão (vigente até 06/10)', servidor:'Thiago', tipo:'apenas_tr', A:3,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'06410002.001599/2025-08', objeto:'Estruturação do Galpão', servidor:'Thiago', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'000110000835.000002/2026-77', objeto:'Aquisição de detectores de metal portáteis', servidor:null, tipo:'apenas_tr', A:2,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'DPGE'},
+  {sei:'SEM-SEI-BANCOPRECOS', objeto:'Banco de Preços (sem SEI registrado)', servidor:null, tipo:'completo', A:2,B:1,C:0,D:0,E:0, status:'bloqueado_externo', aguarda:'SPL'},
+  {sei:'000110000071.000006/2026-34', objeto:'Aquisição de equipamentos de ar-condicionado', servidor:null, tipo:'apenas_tr', A:2,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CEAP'},
+  {sei:'000110000061.000011/2025-85', objeto:'Monitoramento de segurança (videomonitoramento)', servidor:'Lucas', tipo:'apenas_tr', A:4,B:1,C:1,D:0,E:1, status:'bloqueado_externo', aguarda:'CTI'}
 ];
 
 function popularComSeed() {
@@ -1063,7 +1063,7 @@ function popularComSeed() {
       sctBase: calc.sctBase,
       modificador: calc.modificador,
       sctFinal: calc.sctFinal,
-      fiscalElaboracao: s.fiscal,
+      servidorElaboracao: s.servidor,
       status: s.status,
       aguardandoExterno: s.aguarda,
       observacoes: 'Seed planilha 2026 (snapshot 05/05/2026) — revisar score e tipo',
@@ -1092,6 +1092,11 @@ function carregar() {
   // Migração: aditivos antigos podem ter sctFinal = 1 (regra anterior). Atualiza para 0,3.
   let migrados = 0;
   estado.processos.forEach(p => {
+    // Renomeia propriedade legada fiscalElaboracao → servidorElaboracao
+    if ('fiscalElaboracao' in p && !('servidorElaboracao' in p)) {
+      p.servidorElaboracao = p.fiscalElaboracao;
+      delete p.fiscalElaboracao;
+    }
     if (p.tipoDemanda === 'aditivo' && p.sctFinal !== TIPOS_DEMANDA.aditivo.sctFixo) {
       p.sctBase = TIPOS_DEMANDA.aditivo.sctFixo;
       p.sctFinal = TIPOS_DEMANDA.aditivo.sctFixo;
@@ -1163,26 +1168,26 @@ function calcularSCT(tipo, dim) {
 // ============================================================================
 //  DISTRIBUIÇÃO
 // ============================================================================
-function somaSCTAtiva(fiscal) {
+function somaSCTAtiva(servidor) {
   return estado.processos
-    .filter(p => p.fiscalElaboracao === fiscal
+    .filter(p => p.servidorElaboracao === servidor
               && p.status !== 'aprovado_tramite'
               && p.status !== 'concluido'
               && p.status !== 'arquivado'
               && p.status !== 'bloqueado_externo')
     .reduce((soma, p) => soma + (p.sctFinal || 0), 0);
 }
-function ultimoTimestamp(fiscal) {
-  const procs = estado.processos.filter(p => p.fiscalElaboracao === fiscal);
+function ultimoTimestamp(servidor) {
+  const procs = estado.processos.filter(p => p.servidorElaboracao === servidor);
   if (procs.length === 0) return 0; // nunca recebeu → prioridade máxima
   return Math.max(...procs.map(p => p.criadoEm || 0));
 }
-function escolherFiscal() {
+function escolherServidor() {
   const cargasPrimarios = {};
-  FISCAIS_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
-  const todosNoLimite = FISCAIS_PRIMARIOS.every(f => cargasPrimarios[f] >= estado.config.limiarSuplencia);
+  SERVIDORES_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
+  const todosNoLimite = SERVIDORES_PRIMARIOS.every(f => cargasPrimarios[f] >= estado.config.limiarSuplencia);
 
-  let candidatos = [...FISCAIS_PRIMARIOS];
+  let candidatos = [...SERVIDORES_PRIMARIOS];
   let modo = 'primario';
   if (todosNoLimite) {
     candidatos.push(MATHEUS);
@@ -1194,7 +1199,7 @@ function escolherFiscal() {
   const empatados = candidatos.filter(f => cargasPrimarios[f] === minSct);
 
   if (empatados.length === 1) {
-    return { fiscal: empatados[0], modo, cargas: cargasPrimarios };
+    return { servidor: empatados[0], modo, cargas: cargasPrimarios };
   }
   // Desempate: rotação por timestamp (mais antigo / nunca recebeu vence)
   const escolhido = empatados.reduce((a, b) => {
@@ -1202,11 +1207,11 @@ function escolherFiscal() {
     const tb = ultimoTimestamp(b);
     if (ta !== tb) return ta < tb ? a : b;
     // Segundo desempate: ordem alfabética configurada
-    return FISCAIS_PRIMARIOS.indexOf(a) >= 0 && FISCAIS_PRIMARIOS.indexOf(b) >= 0
-      ? (FISCAIS_PRIMARIOS.indexOf(a) < FISCAIS_PRIMARIOS.indexOf(b) ? a : b)
+    return SERVIDORES_PRIMARIOS.indexOf(a) >= 0 && SERVIDORES_PRIMARIOS.indexOf(b) >= 0
+      ? (SERVIDORES_PRIMARIOS.indexOf(a) < SERVIDORES_PRIMARIOS.indexOf(b) ? a : b)
       : a;
   });
-  return { fiscal: escolhido, modo, cargas: cargasPrimarios };
+  return { servidor: escolhido, modo, cargas: cargasPrimarios };
 }
 
 // ============================================================================
@@ -1254,9 +1259,9 @@ function renderDashboard() {
   const arquivados = estado.processos.filter(p => p.status === 'arquivado').length;
 
   const cargasPrimarios = {};
-  FISCAIS_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
+  SERVIDORES_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
   const cargaMatheus = somaSCTAtiva(MATHEUS);
-  const todosNoLimite = FISCAIS_PRIMARIOS.every(f => cargasPrimarios[f] >= estado.config.limiarSuplencia);
+  const todosNoLimite = SERVIDORES_PRIMARIOS.every(f => cargasPrimarios[f] >= estado.config.limiarSuplencia);
 
   // Cards de resumo
   const cardsHtml = `
@@ -1289,10 +1294,10 @@ function renderDashboard() {
   document.getElementById('cards-resumo').innerHTML = cardsHtml;
 
   // Barras de carga
-  const todosFiscais = [...FISCAIS_PRIMARIOS, MATHEUS];
-  const maxBarraSct = Math.max(estado.config.limiarSuplencia * 1.5, ...todosFiscais.map(f => somaSCTAtiva(f)), 10);
+  const todosServidores = [...SERVIDORES_PRIMARIOS, MATHEUS];
+  const maxBarraSct = Math.max(estado.config.limiarSuplencia * 1.5, ...todosServidores.map(f => somaSCTAtiva(f)), 10);
   let barrasHtml = '';
-  todosFiscais.forEach(f => {
+  todosServidores.forEach(f => {
     const carga = somaSCTAtiva(f);
     const pct = Math.min(100, (carga / maxBarraSct) * 100);
     const limiarPct = Math.min(100, (estado.config.limiarSuplencia / maxBarraSct) * 100);
@@ -1301,7 +1306,7 @@ function renderDashboard() {
     else if (carga >= estado.config.limiarSuplencia * 0.75) classe = 'atencao';
     const papel = f === MATHEUS ? 'Suplente / Revisor' : 'Elaboração';
     barrasHtml += `
-      <div class="barra-fiscal">
+      <div class="barra-servidor">
         <div class="nome">${f}<small>${papel}</small></div>
         <div class="barra-wrapper">
           <div class="barra-preenchida ${classe}" style="width:${pct}%"></div>
@@ -1344,7 +1349,7 @@ function renderDashboard() {
 //  RENDERIZAÇÃO — TABELA DE PROCESSOS
 // ============================================================================
 function renderProcessos() {
-  const ff = document.getElementById('filtro-fiscal').value;
+  const ff = document.getElementById('filtro-servidor').value;
   const fn = document.getElementById('filtro-nivel').value;
   const fs = document.getElementById('filtro-status').value;
   const ft = document.getElementById('filtro-tipo').value;
@@ -1352,7 +1357,7 @@ function renderProcessos() {
 
   const tbody = document.querySelector('#tabela-processos tbody');
   const filtrados = estado.processos.filter(p => {
-    if (ff && p.fiscalElaboracao !== ff) return false;
+    if (ff && p.servidorElaboracao !== ff) return false;
     if (fn && (p.nivelCodigo || '') !== fn) return false;
     if (fs && p.status !== fs) return false;
     if (ft && p.tipoDemanda !== ft) return false;
@@ -1396,7 +1401,7 @@ function renderProcessos() {
         <td><span class="badge tipo">${tipo ? tipo.rotulo : '?'}</span></td>
         <td>${p.nivelCodigo ? `<span class="badge ${nivelClasse}">${p.nivelCodigo}</span>` : '—'}</td>
         <td class="num">${(p.sctFinal || 0).toFixed(1)}</td>
-        <td>${p.fiscalElaboracao || '—'}</td>
+        <td>${p.servidorElaboracao || '—'}</td>
         <td><span class="badge ${statusInfo.classe}">${statusInfo.texto}</span></td>
         <td>${p.aguardandoExterno || '—'}</td>
         <td style="font-size:0.75rem;">${formatarData(p.ultimaAtualizacao)}</td>
@@ -1446,7 +1451,7 @@ function renderFilas() {
         <div class="fila-item ${classe}">
           <div><strong>${p.sei || '—'}</strong> — ${p.objeto || '—'}</div>
           <div style="font-size:0.78rem; color:var(--tinta-suave); margin-top:0.2rem;">
-            ${TIPOS_DEMANDA[p.tipoDemanda]?.rotulo || ''} · ${p.nivelCodigo || '—'} · ${(p.sctFinal || 0).toFixed(1)} SCT · elab.: ${p.fiscalElaboracao}
+            ${TIPOS_DEMANDA[p.tipoDemanda]?.rotulo || ''} · ${p.nivelCodigo || '—'} · ${(p.sctFinal || 0).toFixed(1)} SCT · elab.: ${p.servidorElaboracao}
           </div>
           <div class="sla-info ${infoClasse}">${infoTexto}</div>
           <div class="acoes">
@@ -1481,7 +1486,7 @@ function distribuirNovo() {
     E: parseInt(document.getElementById('campo-E').value, 10)
   };
   const calc = calcularSCT(tipo, dim);
-  const dist = escolherFiscal();
+  const dist = escolherServidor();
   const agora = Date.now();
   const proc = {
     id: uuid(),
@@ -1494,14 +1499,14 @@ function distribuirNovo() {
     sctBase: calc.sctBase,
     modificador: calc.modificador,
     sctFinal: calc.sctFinal,
-    fiscalElaboracao: dist.fiscal,
+    servidorElaboracao: dist.servidor,
     status: 'elaboracao',
     aguardandoExterno: null,
     observacoes: document.getElementById('campo-obs').value.trim(),
     criadoEm: agora,
     ultimaAtualizacao: agora,
     entrouFilaEm: null,
-    historico: [{ ts: agora, evento: 'Criado e distribuído para ' + dist.fiscal }]
+    historico: [{ ts: agora, evento: 'Criado e distribuído para ' + dist.servidor }]
   };
   estado.processos.push(proc);
   salvar();
@@ -1513,13 +1518,13 @@ function distribuirNovo() {
     : '';
   painel.innerHTML = `
     <div class="resultado-distribuicao">
-      Processo <strong>${sei}</strong> distribuído para <strong>${dist.fiscal}</strong>.<br>
+      Processo <strong>${sei}</strong> distribuído para <strong>${dist.servidor}</strong>.<br>
       Score: ${calc.score ?? '—'} · Nível: ${calc.nivel.codigo} · SCT base: ${calc.sctBase} · Modificador: ×${calc.modificador} · <strong>SCT final: ${calc.sctFinal}</strong>
       ${aviso}
     </div>
   `;
   renderTudo();
-  toast(`Distribuído para ${dist.fiscal} (${calc.sctFinal} SCT)`);
+  toast(`Distribuído para ${dist.servidor} (${calc.sctFinal} SCT)`);
 }
 
 function avancarStatus(id, novoStatus) {
@@ -1566,13 +1571,13 @@ function concluirContratacao(id) {
 function retornarDiligencia(id) {
   const p = estado.processos.find(x => x.id === id);
   if (!p || p.status !== 'aprovado_tramite') return;
-  if (!p.fiscalElaboracao) {
-    toast('Processo sem fiscal de elaboração registrado — edite primeiro', true);
+  if (!p.servidorElaboracao) {
+    toast('Processo sem servidor de elaboração registrado — edite primeiro', true);
     return;
   }
   const motivo = prompt(
     `Retornar ${p.sei || '(sem SEI)'} para diligência?\n\n` +
-    `Será reatribuído ao fiscal de elaboração original (${p.fiscalElaboracao}) ` +
+    `Será reatribuído ao servidor de elaboração original (${p.servidorElaboracao}) ` +
     'e voltará a contar como carga ativa.\n\n' +
     'Motivo / origem da diligência (recomendado):',
     ''
@@ -1585,7 +1590,7 @@ function retornarDiligencia(id) {
   p.historico = p.historico || [];
   p.historico.push({
     ts: Date.now(),
-    evento: `Retornado para diligência → ${p.fiscalElaboracao}` + (motivo ? ' — ' + motivo : '')
+    evento: `Retornado para diligência → ${p.servidorElaboracao}` + (motivo ? ' — ' + motivo : '')
   });
   if (motivo) {
     p.observacoes = (p.observacoes ? p.observacoes + '\n\n' : '') +
@@ -1593,7 +1598,7 @@ function retornarDiligencia(id) {
   }
   salvar();
   renderTudo();
-  toast(`Diligência registrada — atribuída a ${p.fiscalElaboracao}`);
+  toast(`Diligência registrada — atribuída a ${p.servidorElaboracao}`);
 }
 
 function arquivarProcesso(id) {
@@ -1629,7 +1634,7 @@ function desarquivarProcesso(id) {
   const p = estado.processos.find(x => x.id === id);
   if (!p || p.status !== 'arquivado') return;
   const opcoes = [
-    '1 — Em elaboração (volta para o fiscal)',
+    '1 — Em elaboração (volta para o servidor)',
     '2 — Bloqueado externo (aguardando retorno)',
     '3 — Revisão (Matheus)',
     '4 — Aprovação (Kerolaine)',
@@ -1662,8 +1667,8 @@ function desarquivarProcesso(id) {
     if (setor === null) return;
     aguardando = setor.trim() || null;
   }
-  if ((novoStatus === 'revisao_matheus' || novoStatus === 'aprovacao_kerolaine' || novoStatus === 'aprovado_tramite') && !p.fiscalElaboracao) {
-    toast('Processo precisa ter fiscal de elaboração antes desse status. Edite primeiro.', true);
+  if ((novoStatus === 'revisao_matheus' || novoStatus === 'aprovacao_kerolaine' || novoStatus === 'aprovado_tramite') && !p.servidorElaboracao) {
+    toast('Processo precisa ter servidor de elaboração antes desse status. Edite primeiro.', true);
     return;
   }
   p.status = novoStatus;
@@ -1697,10 +1702,10 @@ function abrirEdicao(id) {
         <input type="text" id="edit-objeto" value="${(p.objeto || '').replace(/"/g, '&quot;')}">
       </div>
       <div>
-        <label>Fiscal de elaboração</label>
-        <select id="edit-fiscal">
-          ${[...FISCAIS_PRIMARIOS, MATHEUS].map(f =>
-            `<option value="${f}" ${p.fiscalElaboracao === f ? 'selected' : ''}>${f}</option>`).join('')}
+        <label>Servidor de elaboração</label>
+        <select id="edit-servidor">
+          ${[...SERVIDORES_PRIMARIOS, MATHEUS].map(f =>
+            `<option value="${f}" ${p.servidorElaboracao === f ? 'selected' : ''}>${f}</option>`).join('')}
         </select>
       </div>
       <div>
@@ -1744,7 +1749,7 @@ function salvarEdicao() {
   const p = estado.processos.find(x => x.id === editandoId);
   if (!p) return;
   p.objeto = document.getElementById('edit-objeto').value.trim();
-  p.fiscalElaboracao = document.getElementById('edit-fiscal').value;
+  p.servidorElaboracao = document.getElementById('edit-servidor').value;
   const novoStatus = document.getElementById('edit-status').value;
   if (novoStatus !== p.status) {
     p.entrouFilaEm = Date.now();
@@ -1777,7 +1782,7 @@ function carregarConfigUI() {
   document.getElementById('cfg-limiar').value = estado.config.limiarSuplencia;
   document.getElementById('cfg-sla-matheus').value = estado.config.slaMatheus;
   document.getElementById('cfg-sla-kerolaine').value = estado.config.slaKerolaine;
-  document.getElementById('lista-fiscais').innerHTML = FISCAIS_PRIMARIOS.map(f =>
+  document.getElementById('lista-servidores').innerHTML = SERVIDORES_PRIMARIOS.map(f =>
     `<li><strong>${f}</strong> — elaboração primária</li>`).join('') +
     `<li><strong>${MATHEUS}</strong> — revisor de TR + suplente de elaboração</li>` +
     `<li><strong>${KEROLAINE}</strong> — aprovação exclusiva</li>`;
@@ -1805,7 +1810,7 @@ function exportarJSON() {
   toast('JSON exportado');
 }
 function exportarCSV() {
-  const cab = ['SEI','Objeto','Tipo','Score','Nivel','SCT_base','Modificador','SCT_final','Fiscal','Status','Aguardando','Criado','Atualizado'];
+  const cab = ['SEI','Objeto','Tipo','Score','Nivel','SCT_base','Modificador','SCT_final','Servidor','Status','Aguardando','Criado','Atualizado'];
   const linhas = estado.processos.map(p => [
     p.sei || '',
     (p.objeto || '').replace(/"/g, '""'),
@@ -1815,7 +1820,7 @@ function exportarCSV() {
     p.sctBase ?? '',
     p.modificador ?? '',
     p.sctFinal ?? '',
-    p.fiscalElaboracao || '',
+    p.servidorElaboracao || '',
     STATUS_ROTULOS[p.status]?.texto || p.status || '',
     p.aguardandoExterno || '',
     p.criadoEm ? new Date(p.criadoEm).toISOString() : '',
@@ -1876,7 +1881,7 @@ function inserirExemplos() {
   let inseridos = 0;
   exemplos.forEach((ex, idx) => {
     const calc = calcularSCT(ex.tipo, ex.dim);
-    const dist = escolherFiscal();
+    const dist = escolherServidor();
     const ts = agora + idx;
     const proc = {
       id: uuid(),
@@ -1889,14 +1894,14 @@ function inserirExemplos() {
       sctBase: calc.sctBase,
       modificador: calc.modificador,
       sctFinal: calc.sctFinal,
-      fiscalElaboracao: dist.fiscal,
+      servidorElaboracao: dist.servidor,
       status: 'elaboracao',
       aguardandoExterno: null,
       observacoes: 'Processo de exemplo',
       criadoEm: ts,
       ultimaAtualizacao: ts,
       entrouFilaEm: null,
-      historico: [{ ts, evento: 'Exemplo carregado · distribuído para ' + dist.fiscal }]
+      historico: [{ ts, evento: 'Exemplo carregado · distribuído para ' + dist.servidor }]
     };
     estado.processos.push(proc);
     inseridos++;
@@ -1920,8 +1925,8 @@ function atualizarPrecalculo() {
   };
   const calc = calcularSCT(tipo, dim);
   const cargasPrimarios = {};
-  FISCAIS_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
-  const previa = escolherFiscal();
+  SERVIDORES_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
+  const previa = escolherServidor();
   const t = TIPOS_DEMANDA[tipo];
   let texto = '';
   if (t.sctFixo !== null) {
@@ -1929,9 +1934,9 @@ function atualizarPrecalculo() {
   } else {
     texto = `Score = ${calc.score} → <strong>${calc.nivel.codigo}</strong> → SCT base ${calc.sctBase} × ${calc.modificador} = <strong>${calc.sctFinal} SCT final</strong>`;
   }
-  texto += `<br>Previsão de distribuição: <strong>${previa.fiscal}</strong>`;
+  texto += `<br>Previsão de distribuição: <strong>${previa.servidor}</strong>`;
   if (previa.modo === 'suplencia') texto += ' <span style="color:var(--vermelho-alerta);">(suplência ativa)</span>';
-  texto += `<br><small style="color:var(--tinta-suave);">Cargas atuais: ${FISCAIS_PRIMARIOS.map(f => `${f} ${cargasPrimarios[f].toFixed(1)}`).join(' · ')}</small>`;
+  texto += `<br><small style="color:var(--tinta-suave);">Cargas atuais: ${SERVIDORES_PRIMARIOS.map(f => `${f} ${cargasPrimarios[f].toFixed(1)}`).join(' · ')}</small>`;
   document.getElementById('precalculo').innerHTML = texto;
 }
 
@@ -2323,11 +2328,11 @@ function ativarTab(nome) {
   document.querySelectorAll('.tab-pane').forEach(s => s.classList.toggle('active', s.id === 'tab-' + nome));
 }
 
-function preencherFiltroFiscal() {
-  const sel = document.getElementById('filtro-fiscal');
-  const fiscais = [...FISCAIS_PRIMARIOS, MATHEUS];
+function preencherFiltroServidor() {
+  const sel = document.getElementById('filtro-servidor');
+  const servidores = [...SERVIDORES_PRIMARIOS, MATHEUS];
   sel.innerHTML = '<option value="">Todos</option>' +
-    fiscais.map(f => `<option value="${f}">${f}</option>`).join('');
+    servidores.map(f => `<option value="${f}">${f}</option>`).join('');
 }
 
 function renderTudo() {
@@ -2342,7 +2347,7 @@ function renderTudo() {
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
   carregar();
-  preencherFiltroFiscal();
+  preencherFiltroServidor();
   carregarConfigUI();
   renderTudo();
 
@@ -2369,7 +2374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ['campo-tipo','campo-A','campo-B','campo-C','campo-D','campo-E']
     .forEach(id => document.getElementById(id).addEventListener('change', atualizarPrecalculo));
 
-  ['filtro-fiscal','filtro-nivel','filtro-status','filtro-tipo','filtro-busca']
+  ['filtro-servidor','filtro-nivel','filtro-status','filtro-tipo','filtro-busca']
     .forEach(id => document.getElementById(id).addEventListener('input', renderProcessos));
 
   document.getElementById('modal-cancelar').addEventListener('click', fecharEdicao);
