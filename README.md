@@ -85,13 +85,60 @@ Os **dados** continuam no localStorage e na pasta de backup configurada — não
 
 ## Uso multi-usuário
 
-O `localStorage` é **por navegador**. Cada servidor da equipe que abrir a página tem seu próprio estado isolado. Para colaboração em tempo real, é necessário backend (não incluso).
+O `localStorage` é **por navegador**. Cada servidor da equipe que abrir a página tem seu próprio estado isolado. Para trabalho conjunto, a aplicação oferece o **Modo Compartilhado**.
 
-Alternativas práticas:
+### Modo Compartilhado (sincronização via pasta OneDrive)
 
-- **Uma pessoa como fonte de verdade** (a coordenadora ou alguém designado): mantém o estado autoritativo, exporta JSON ao fim do dia e distribui aos demais, que importam pela aba Backup.
-- **Pasta de backup compartilhada** via OneDrive/Drive: cada usuário aponta sua pasta de backup para o mesmo diretório sincronizado. Última gravação vence — risco de conflito se dois editarem ao mesmo tempo.
-- **Migração para backend**: Google Sheets API, Airtable, Notion ou SQLite+servidor. Requer desenvolvimento adicional.
+Permite que dois ou mais servidores trabalhem na mesma base, com sincronização automática a cada 5 segundos via uma pasta sincronizada do OneDrive corporativo.
+
+**Como funciona:**
+
+1. Um dos servidores cria a pasta no OneDrive institucional (ex: `OneDrive/COAG/Distribuicao/`) e compartilha com os colegas com permissão de edição.
+2. Cada usuário, no seu computador:
+   - Aguarda o OneDrive sincronizar a pasta compartilhada
+   - Abre a aplicação
+   - Aba **Backup → Identificar-se** (digita seu nome)
+   - **Configurar pasta** apontando para a pasta compartilhada local
+   - **Ativar modo compartilhado**
+3. Pronto. Mudanças feitas por um servidor aparecem para os outros em 10–35 segundos (5s de polling + 5–30s do sync do OneDrive).
+
+**Estrutura criada automaticamente na pasta:**
+
+```
+PastaCompartilhada/
+├── _config.json              # Limiar de suplência, SLAs (globais para a equipe)
+├── _index.json               # Lista de processos com versão e timestamp
+├── processos/
+│   ├── p_xxx.json            # Um arquivo por processo
+│   └── ...
+└── presenca/
+    ├── kerolaine.json        # Heartbeat (quem está online)
+    └── matheus.json
+```
+
+**Conflitos:**
+
+- Cada processo tem campo `versao`. Ao salvar, o sistema relê a versão na pasta e compara — se subiu, é conflito.
+- Conflito é resolvido a favor de quem chegou primeiro. Quem detecta vê banner laranja: *"Processo X — Matheus editou primeiro. Sua alteração foi descartada. Reabra se quiser refazer."*
+- Edições em processos diferentes nunca conflitam (granularidade por arquivo).
+
+**Presença passiva:**
+
+- Cabeçalho mostra "Você: [seu nome] · Online agora: [outros nomes]"
+- Status badge no canto direito: 🟢 Sincronizado · 🟡 Sincronizando · 🟠 Conflito · 🔴 Erro
+
+**Limitações conhecidas:**
+
+- **Apenas Chromium** (Chrome/Edge/Opera/Brave) — File System Access API.
+- **Race condition de microsegundos:** se dois servidores salvarem o MESMO processo em janela <100ms, ambos podem escrever. Para 6 usuários, probabilidade baixa mas não zero.
+- **Permissão da pasta:** o Chrome exige reconfirmação após cada reinício do navegador. A aplicação avisa quando precisa.
+- **Sem merge inteligente:** quem chegou primeiro vence integralmente. Não há diff por campo.
+
+### Alternativas não cobertas
+
+Para necessidades além do que o modo compartilhado entrega:
+- **SharePoint List + Microsoft Graph API**: locking otimista nativo, auditoria automática, permissões granulares. Requer registro de app no Azure AD da DPE/RN.
+- **Backend dedicado** (Supabase, Firebase, servidor próprio): tempo real verdadeiro via WebSocket.
 
 ---
 

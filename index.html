@@ -64,6 +64,30 @@
     color: #c9d4cc;
     font-style: italic;
   }
+  /* Indicador de sincronização */
+  .indicador-sync {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    background: rgba(0,0,0,0.2);
+    padding: 0.2rem 0.55rem;
+    border-radius: 12px;
+    color: #c9d4cc;
+    margin-left: 0.5rem;
+    cursor: help;
+  }
+  .indicador-sync .ponto {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--tinta-fraca);
+  }
+  .indicador-sync.ok .ponto { background: #6db86d; }
+  .indicador-sync.sincronizando .ponto { background: var(--amarelo-alerta); animation: pulsar 1s infinite; }
+  .indicador-sync.erro .ponto { background: #e07060; }
+  .indicador-sync.offline .ponto { background: var(--tinta-fraca); }
+  @keyframes pulsar { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
   nav.tabs {
     display: flex;
     gap: 0;
@@ -501,6 +525,48 @@
     border: 1px solid var(--papel);
     padding: 0.2rem 0.5rem;
   }
+  /* Banner de conflito (laranja) */
+  .banner-conflito {
+    background: var(--amarelo-alerta);
+    color: var(--papel);
+    padding: 0.6rem 1.5rem;
+    font-size: 0.85rem;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+  .banner-conflito.visivel { display: flex; }
+  .banner-conflito button {
+    background: var(--papel);
+    color: var(--amarelo-alerta);
+    border: none;
+    padding: 0.3rem 0.8rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  /* Info usuario / status sync no header */
+  .info-cabecalho {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.35rem 1.5rem;
+    background: rgba(0,0,0,0.15);
+    color: var(--papel);
+    font-size: 0.75rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .info-cabecalho strong { color: #f0e0a0; }
+  .status-sync-badge {
+    padding: 0.15rem 0.5rem;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    font-size: 0.72rem;
+    cursor: help;
+  }
   /* Status de proteção */
   .status-protecao {
     display: grid;
@@ -558,6 +624,7 @@
   <button id="banner-aviso-acao">Configurar agora</button>
   <button class="fechar-banner" id="banner-aviso-fechar">Dispensar</button>
 </div>
+<div class="banner-conflito" id="banner-conflito"></div>
 <header>
   <div class="titulo">
     <h1><strong>COAG</strong> · Defensoria Pública do Estado do Rio Grande do Norte</h1>
@@ -572,6 +639,10 @@
     <button class="tab-btn" data-tab="config">Configuração</button>
     <button class="tab-btn" data-tab="backup">Backup / Importar</button>
   </nav>
+  <div class="info-cabecalho">
+    <span id="info-usuario"><em>Carregando…</em></span>
+    <span class="status-sync-badge" id="status-sync-badge" style="display:none;"></span>
+  </div>
 </header>
 
 <main>
@@ -887,6 +958,16 @@
         <div class="desc-status">Mostra quanto espaço o navegador está usando. Se chegar próximo do limite, salvar falhará silenciosamente.</div>
         <div class="valor-status" id="status-quota-valor">Verificando…</div>
       </div>
+      <div class="status-item" id="status-compartilhado" style="grid-column:1/-1;">
+        <div class="titulo-status">Camada 5 — Modo compartilhado entre servidores</div>
+        <div class="desc-status">Sincroniza o estado via pasta do OneDrive corporativo. Para que dois ou mais servidores trabalhem na mesma base, todos apontam para a MESMA pasta sincronizada. Polling de 5s detecta mudanças; conflitos são detectados por versão de cada processo (locking otimista). Latência típica: 10–35 segundos (polling + sync do OneDrive). Requer pasta já configurada (Camada 3) e funciona apenas em Chrome/Edge/Opera.</div>
+        <div class="valor-status" id="status-compartilhado-valor">Verificando…</div>
+        <div style="margin-top:0.4rem;">
+          <button class="btn pequeno" id="btn-trocar-usuario">Identificar-se</button>
+          <button class="btn pequeno" id="btn-ativar-compartilhado">Ativar modo compartilhado</button>
+          <button class="btn pequeno secundario" id="btn-desativar-compartilhado" style="display:none;">Desativar</button>
+        </div>
+      </div>
     </div>
 
     <div class="lista-snapshots" id="lista-snapshots" style="display:none;"></div>
@@ -1092,6 +1173,8 @@ function carregar() {
   // Migração: aditivos antigos podem ter sctFinal = 1 (regra anterior). Atualiza para 0,3.
   let migrados = 0;
   estado.processos.forEach(p => {
+    // Garantir campo versao (necessário para locking otimista no modo compartilhado)
+    if (typeof p.versao !== 'number') p.versao = 0;
     // Renomeia propriedade legada fiscalElaboracao → servidorElaboracao
     if ('fiscalElaboracao' in p && !('servidorElaboracao' in p)) {
       p.servidorElaboracao = p.fiscalElaboracao;
@@ -1133,7 +1216,11 @@ function salvar() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
     salvarSnapshotDiario();
-    agendarAutoBackup();
+    if (modoSincronizacao === 'compartilhado') {
+      agendarSyncRemota();
+    } else {
+      agendarAutoBackup();
+    }
   } catch (e) {
     toast('Erro ao salvar — armazenamento pode estar cheio', true);
   }
@@ -2258,6 +2345,8 @@ async function atualizarStatusProtecoes() {
 
   // Banner de aviso
   atualizarBannerAviso();
+  // Status do modo compartilhado
+  atualizarStatusCompartilhado();
 }
 
 function renderListaSnapshots() {
@@ -2321,6 +2410,512 @@ async function registrarServiceWorker() {
 // ============================================================================
 
 // ============================================================================
+//  MODO COMPARTILHADO — Sincronização via pasta OneDrive
+// ============================================================================
+let usuario = null;
+let modoSincronizacao = 'local'; // 'local' | 'compartilhado'
+let indiceRemoto = null;
+let polTimer = null;
+let heartbeatTimer = null;
+let syncTimer = null;
+let ultimoSyncOK = null;
+let presencaOnline = [];
+let statusSync = 'desconectado';
+let conflitosUI = [];
+
+function slugify(s) {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/_+/g, '_').replace(/^_|_$/g, '');
+}
+function obterUsuario() {
+  const raw = localStorage.getItem('coag_usuario');
+  if (raw) { try { return JSON.parse(raw); } catch {} }
+  return null;
+}
+function definirUsuario() {
+  let nome = '';
+  while (!nome) {
+    const r = prompt('Identifique-se: digite seu nome (aparecerá para os colegas online):', '');
+    if (r === null) return null;
+    nome = r.trim();
+  }
+  const u = { nome, slug: slugify(nome) };
+  localStorage.setItem('coag_usuario', JSON.stringify(u));
+  return u;
+}
+function trocarUsuario() {
+  const novo = definirUsuario();
+  if (!novo) return;
+  // Se mudou o slug e está em modo compartilhado, remove arquivo antigo
+  if (usuario && usuario.slug !== novo.slug && modoSincronizacao === 'compartilhado') {
+    removerPresencaAntiga(usuario.slug).catch(() => {});
+  }
+  usuario = novo;
+  atualizarInfoUsuario();
+  if (modoSincronizacao === 'compartilhado') {
+    enviarHeartbeat();
+  }
+  toast('Identificado como ' + usuario.nome);
+}
+async function removerPresencaAntiga(slug) {
+  if (!dirHandle) return;
+  try {
+    const dir = await dirHandle.getDirectoryHandle('presenca', { create: false });
+    await dir.removeEntry(`${slug}.json`);
+  } catch {}
+}
+
+// --- Helpers de I/O ---
+async function lerArquivoPasta(path) {
+  const partes = path.split('/');
+  let dir = dirHandle;
+  for (let i = 0; i < partes.length - 1; i++) {
+    dir = await dir.getDirectoryHandle(partes[i], { create: false });
+  }
+  const fh = await dir.getFileHandle(partes[partes.length - 1]);
+  const file = await fh.getFile();
+  return JSON.parse(await file.text());
+}
+async function escreverArquivoPasta(path, dados) {
+  const partes = path.split('/');
+  let dir = dirHandle;
+  for (let i = 0; i < partes.length - 1; i++) {
+    dir = await dir.getDirectoryHandle(partes[i], { create: true });
+  }
+  const fh = await dir.getFileHandle(partes[partes.length - 1], { create: true });
+  const w = await fh.createWritable();
+  await w.write(JSON.stringify(dados, null, 2));
+  await w.close();
+}
+async function existeArquivoPasta(path) {
+  try { await lerArquivoPasta(path); return true; } catch { return false; }
+}
+async function listarArquivosPasta(subpath) {
+  let dir = dirHandle;
+  if (subpath) {
+    try { dir = await dir.getDirectoryHandle(subpath, { create: false }); }
+    catch { return []; }
+  }
+  const itens = [];
+  for await (const [name, h] of dir.entries()) {
+    if (h.kind === 'file') itens.push(name);
+  }
+  return itens;
+}
+
+// --- Bootstrap ---
+async function ativarModoCompartilhado() {
+  if (!dirHandle) {
+    toast('Configure primeiro a pasta (Camada 3)', true);
+    return;
+  }
+  const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+  if (perm !== 'granted') {
+    const ask = await dirHandle.requestPermission({ mode: 'readwrite' });
+    if (ask !== 'granted') {
+      toast('Permissão de escrita necessária', true);
+      return;
+    }
+  }
+  if (!usuario) {
+    usuario = definirUsuario();
+    if (!usuario) return;
+  }
+  const temIndice = await existeArquivoPasta('_index.json');
+  if (temIndice) {
+    if (!confirm(
+      'Esta pasta já contém dados sincronizados de uma equipe.\n\n' +
+      'Substituir SEUS dados locais pelos da pasta?\n\n' +
+      'Recomendado: SIM se você está entrando em uma equipe existente. ' +
+      'Caso tenha alterações locais não enviadas, exporte JSON antes (Camada Backup).'
+    )) return;
+    await sincronizarDaPasta();
+  } else {
+    if (estado.processos.length > 0) {
+      if (!confirm(
+        `Esta pasta está vazia. Você é o primeiro do time.\n\n` +
+        `Enviar seus ${estado.processos.length} processo(s) locais para a pasta?\n\n` +
+        `Os colegas que entrarem depois receberão essa base.`
+      )) return;
+      await enviarTudoParaPasta();
+    } else {
+      await escreverArquivoPasta('_config.json', estado.config);
+      await escreverArquivoPasta('_index.json', { processos: [], atualizadoEm: Date.now() });
+      indiceRemoto = { processos: [], atualizadoEm: Date.now() };
+    }
+  }
+  modoSincronizacao = 'compartilhado';
+  estado.config.modoSincronizacao = 'compartilhado';
+  estado.config.nomePastaCompartilhada = dirHandle.name;
+  salvarLocalSomente();
+  iniciarPolling();
+  iniciarHeartbeat();
+  await enviarHeartbeat();
+  atualizarInfoUsuario();
+  atualizarStatusSync();
+  atualizarStatusProtecoes();
+  toast('Modo compartilhado ativado');
+}
+async function desativarModoCompartilhado() {
+  if (!confirm('Sair do modo compartilhado? Você continuará com seus dados locais, mas não receberá atualizações dos colegas.')) return;
+  pararPolling();
+  pararHeartbeat();
+  if (usuario) await removerPresencaAntiga(usuario.slug);
+  modoSincronizacao = 'local';
+  delete estado.config.modoSincronizacao;
+  delete estado.config.nomePastaCompartilhada;
+  salvarLocalSomente();
+  statusSync = 'desconectado';
+  presencaOnline = [];
+  atualizarInfoUsuario();
+  atualizarStatusSync();
+  atualizarStatusProtecoes();
+  toast('Modo compartilhado desativado');
+}
+async function enviarTudoParaPasta() {
+  for (const p of estado.processos) {
+    p.versao = 1;
+    p.modificadoEm = p.modificadoEm || Date.now();
+    p.modificadoPor = usuario.nome;
+    await escreverArquivoPasta(`processos/${p.id}.json`, p);
+  }
+  const indice = {
+    processos: estado.processos.map(p => ({ id: p.id, versao: p.versao, modificadoEm: p.modificadoEm })),
+    atualizadoEm: Date.now()
+  };
+  await escreverArquivoPasta('_index.json', indice);
+  await escreverArquivoPasta('_config.json', estado.config);
+  indiceRemoto = indice;
+}
+async function sincronizarDaPasta() {
+  const indice = await lerArquivoPasta('_index.json');
+  const novos = [];
+  for (const ref of indice.processos) {
+    try { novos.push(await lerArquivoPasta(`processos/${ref.id}.json`)); }
+    catch (e) { console.warn('Falha ler', ref.id, e); }
+  }
+  estado.processos = novos;
+  try {
+    const cfg = await lerArquivoPasta('_config.json');
+    estado.config = { ...CONFIG_PADRAO, ...cfg };
+  } catch {}
+  indiceRemoto = indice;
+  salvarLocalSomente();
+  carregarConfigUI();
+  renderTudo();
+}
+
+// --- Push para pasta (debounced) ---
+function agendarSyncRemota() {
+  if (modoSincronizacao !== 'compartilhado') return;
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(empurrarParaPasta, 1500);
+}
+async function empurrarParaPasta() {
+  if (modoSincronizacao !== 'compartilhado' || !dirHandle || !usuario) return;
+  try {
+    const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      statusSync = 'erro'; atualizarStatusSync(); return;
+    }
+    statusSync = 'sincronizando'; atualizarStatusSync();
+    try { indiceRemoto = await lerArquivoPasta('_index.json'); }
+    catch { indiceRemoto = { processos: [], atualizadoEm: 0 }; }
+    const refMap = new Map(indiceRemoto.processos.map(r => [r.id, r]));
+    const novosRef = [];
+    let conflitos = 0;
+    let enviados = 0;
+    for (const p of estado.processos) {
+      const ref = refMap.get(p.id);
+      if (ref) {
+        if ((p.versao || 0) < ref.versao) {
+          // CONFLITO: o remoto está à frente
+          conflitos++;
+          try {
+            const remoto = await lerArquivoPasta(`processos/${p.id}.json`);
+            registrarConflito(p, remoto);
+            const i = estado.processos.findIndex(x => x.id === p.id);
+            estado.processos[i] = remoto;
+            novosRef.push({ id: remoto.id, versao: remoto.versao, modificadoEm: remoto.modificadoEm });
+          } catch {
+            novosRef.push(ref);
+          }
+        } else if ((p.ultimaAtualizacao || 0) > (ref.modificadoEm || 0)) {
+          // local mudou desde a última sync, sem conflito — empurrar
+          p.versao = ref.versao + 1;
+          p.modificadoEm = Date.now();
+          p.modificadoPor = usuario.nome;
+          await escreverArquivoPasta(`processos/${p.id}.json`, p);
+          novosRef.push({ id: p.id, versao: p.versao, modificadoEm: p.modificadoEm });
+          enviados++;
+        } else {
+          novosRef.push(ref);
+        }
+      } else {
+        // novo local
+        p.versao = 1;
+        p.modificadoEm = Date.now();
+        p.modificadoPor = usuario.nome;
+        await escreverArquivoPasta(`processos/${p.id}.json`, p);
+        novosRef.push({ id: p.id, versao: 1, modificadoEm: p.modificadoEm });
+        enviados++;
+      }
+    }
+    // Excluídos localmente → remover do remoto
+    const idsLocais = new Set(estado.processos.map(p => p.id));
+    for (const ref of indiceRemoto.processos) {
+      if (!idsLocais.has(ref.id)) {
+        try {
+          const dir = await dirHandle.getDirectoryHandle('processos', { create: false });
+          await dir.removeEntry(`${ref.id}.json`);
+          enviados++;
+        } catch {}
+      }
+    }
+    const novoIndice = { processos: novosRef, atualizadoEm: Date.now() };
+    await escreverArquivoPasta('_index.json', novoIndice);
+    indiceRemoto = novoIndice;
+    // Config: sincroniza se mudou
+    try {
+      const cfgRemoto = await lerArquivoPasta('_config.json');
+      if (JSON.stringify(cfgRemoto) !== JSON.stringify(estado.config)) {
+        await escreverArquivoPasta('_config.json', estado.config);
+      }
+    } catch { await escreverArquivoPasta('_config.json', estado.config); }
+    ultimoSyncOK = Date.now();
+    statusSync = conflitos > 0 ? 'conflito' : 'ok';
+    atualizarStatusSync();
+    salvarLocalSomente();
+    if (conflitos > 0) renderTudo();
+  } catch (e) {
+    console.warn('Erro empurrarParaPasta:', e);
+    statusSync = 'erro'; atualizarStatusSync();
+  }
+}
+
+// --- Conflitos ---
+function registrarConflito(local, remoto) {
+  conflitosUI.push({
+    sei: remoto.sei || '(sem SEI)',
+    colega: remoto.modificadoPor || 'colega',
+    quando: remoto.modificadoEm,
+    statusVencedor: STATUS_ROTULOS[remoto.status]?.texto || remoto.status
+  });
+  if (conflitosUI.length > 10) conflitosUI.shift();
+  atualizarBannerConflito();
+}
+function atualizarBannerConflito() {
+  const banner = document.getElementById('banner-conflito');
+  if (!banner) return;
+  if (conflitosUI.length === 0) {
+    banner.classList.remove('visivel');
+    banner.innerHTML = '';
+    return;
+  }
+  const lista = conflitosUI.map(c =>
+    `<li><strong>${c.sei}</strong> — ${c.colega} editou primeiro (status final: ${c.statusVencedor})</li>`
+  ).join('');
+  banner.innerHTML = `
+    <div style="text-align:left; max-width:800px;">
+      <strong>⚠ Conflito de edição em ${conflitosUI.length} processo(s):</strong>
+      <ul style="margin:0.3rem 0 0.5rem 1.5rem;">${lista}</ul>
+      A versão dos colegas foi mantida. Sua alteração foi descartada — reabra o processo se quiser refazer.
+    </div>
+    <button onclick="dispensarConflitos()">OK, entendi</button>
+  `;
+  banner.classList.add('visivel');
+}
+function dispensarConflitos() {
+  conflitosUI = [];
+  atualizarBannerConflito();
+}
+
+// --- Pull / Polling ---
+function iniciarPolling() {
+  if (polTimer) clearInterval(polTimer);
+  polTimer = setInterval(puxarDaPasta, 5000);
+  setTimeout(puxarDaPasta, 800);
+}
+function pararPolling() {
+  if (polTimer) { clearInterval(polTimer); polTimer = null; }
+}
+async function puxarDaPasta() {
+  if (modoSincronizacao !== 'compartilhado' || !dirHandle) return;
+  try {
+    const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      statusSync = 'erro'; atualizarStatusSync(); return;
+    }
+    const indice = await lerArquivoPasta('_index.json');
+    if (indiceRemoto && indice.atualizadoEm === indiceRemoto.atualizadoEm) {
+      statusSync = 'ok'; atualizarStatusSync();
+      await lerPresencas();
+      return;
+    }
+    statusSync = 'sincronizando'; atualizarStatusSync();
+    const refsLocais = new Map(estado.processos.map(p => [p.id, p]));
+    const idsRemotos = new Set(indice.processos.map(r => r.id));
+    let puxados = 0;
+    for (const ref of indice.processos) {
+      const local = refsLocais.get(ref.id);
+      if (!local || (local.versao || 0) < ref.versao) {
+        try {
+          const p = await lerArquivoPasta(`processos/${ref.id}.json`);
+          const i = estado.processos.findIndex(x => x.id === ref.id);
+          if (i >= 0) estado.processos[i] = p;
+          else estado.processos.push(p);
+          puxados++;
+        } catch (e) { console.warn('Falha puxar', ref.id); }
+      }
+    }
+    const antes = estado.processos.length;
+    estado.processos = estado.processos.filter(p => idsRemotos.has(p.id));
+    const removidos = antes - estado.processos.length;
+    try {
+      const cfg = await lerArquivoPasta('_config.json');
+      const novaCfg = { ...CONFIG_PADRAO, ...cfg };
+      if (JSON.stringify(novaCfg) !== JSON.stringify(estado.config)) {
+        estado.config = novaCfg;
+        carregarConfigUI();
+      }
+    } catch {}
+    indiceRemoto = indice;
+    salvarLocalSomente();
+    if (puxados > 0 || removidos > 0) {
+      renderTudo();
+      if (puxados > 0) toast(`${puxados} processo(s) atualizado(s) por colegas`);
+      if (removidos > 0) toast(`${removidos} processo(s) excluído(s) por colegas`);
+    }
+    ultimoSyncOK = Date.now();
+    statusSync = 'ok';
+    atualizarStatusSync();
+    await lerPresencas();
+  } catch (e) {
+    console.warn('Erro puxarDaPasta:', e);
+    statusSync = 'erro'; atualizarStatusSync();
+  }
+}
+
+// --- Heartbeat / Presença ---
+function iniciarHeartbeat() {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(enviarHeartbeat, 30000);
+}
+function pararHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+}
+async function enviarHeartbeat() {
+  if (modoSincronizacao !== 'compartilhado' || !dirHandle || !usuario) return;
+  try {
+    await escreverArquivoPasta(`presenca/${usuario.slug}.json`, {
+      nome: usuario.nome, slug: usuario.slug, ultimaAtividade: Date.now()
+    });
+  } catch (e) { console.warn('Heartbeat falhou:', e); }
+}
+async function lerPresencas() {
+  if (!dirHandle || !usuario) return;
+  try {
+    const arquivos = await listarArquivosPasta('presenca');
+    const agora = Date.now();
+    const LIMITE_ONLINE = 2 * 60 * 1000;
+    const presencas = [];
+    for (const arq of arquivos) {
+      try {
+        const p = await lerArquivoPasta(`presenca/${arq}`);
+        if (p.slug !== usuario.slug && (agora - p.ultimaAtividade) < LIMITE_ONLINE) {
+          presencas.push(p);
+        }
+      } catch {}
+    }
+    const mudou = JSON.stringify(presencas.map(p=>p.slug).sort())
+               !== JSON.stringify(presencaOnline.map(p=>p.slug).sort());
+    presencaOnline = presencas;
+    if (mudou) atualizarInfoUsuario();
+  } catch (e) { console.warn('Erro lerPresencas:', e); }
+}
+
+// --- UI ---
+function atualizarInfoUsuario() {
+  const el = document.getElementById('info-usuario');
+  if (!el) return;
+  if (!usuario) {
+    el.innerHTML = '<em>Não identificado — clique em Identificar-se na aba Backup</em>';
+    return;
+  }
+  let html = `Você: <strong>${usuario.nome}</strong>`;
+  if (modoSincronizacao === 'compartilhado') {
+    if (presencaOnline.length > 0) {
+      const nomes = presencaOnline.map(p => p.nome).join(', ');
+      html += ` · Online agora: ${nomes}`;
+    } else {
+      html += ` · <em>Sozinho online no momento</em>`;
+    }
+  }
+  el.innerHTML = html;
+}
+function atualizarStatusSync() {
+  const el = document.getElementById('status-sync-badge');
+  if (!el) return;
+  if (modoSincronizacao !== 'compartilhado') {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  const labels = {
+    'desconectado': '⚪ Desconectado',
+    'sincronizando': '🟡 Sincronizando…',
+    'ok': '🟢 Sincronizado',
+    'conflito': '🟠 Conflito detectado',
+    'erro': '🔴 Erro de sincronização'
+  };
+  el.textContent = labels[statusSync] || statusSync;
+  el.title = ultimoSyncOK
+    ? `Último sync OK: ${new Date(ultimoSyncOK).toLocaleTimeString('pt-BR')}`
+    : 'Aguardando primeira sincronização';
+}
+function atualizarStatusCompartilhado() {
+  const el = document.getElementById('status-compartilhado-valor');
+  const item = document.getElementById('status-compartilhado');
+  const btnAtivar = document.getElementById('btn-ativar-compartilhado');
+  const btnDesat = document.getElementById('btn-desativar-compartilhado');
+  if (!el) return;
+  if (!('showDirectoryPicker' in window)) {
+    el.innerHTML = '<span class="warn">Navegador não suporta (use Chrome/Edge/Opera)</span>';
+    item.classList.add('alerta');
+    btnAtivar.style.display = 'none';
+    btnDesat.style.display = 'none';
+    return;
+  }
+  if (modoSincronizacao === 'compartilhado') {
+    const nomePasta = estado.config.nomePastaCompartilhada || dirHandle?.name || '?';
+    el.innerHTML = `<span class="ok">Ativo · pasta "${nomePasta}" · usuário ${usuario?.nome || '?'}</span>`;
+    item.classList.remove('alerta', 'atencao');
+    btnAtivar.style.display = 'none';
+    btnDesat.style.display = '';
+  } else if (!dirHandle) {
+    el.innerHTML = '<span class="warn">Inativo · configure primeiro a pasta na Camada 3</span>';
+    item.classList.add('atencao');
+    btnAtivar.style.display = '';
+    btnDesat.style.display = 'none';
+  } else {
+    el.innerHTML = '<span class="warn">Inativo · pasta configurada mas modo individual</span>';
+    item.classList.add('atencao');
+    btnAtivar.style.display = '';
+    btnDesat.style.display = 'none';
+  }
+}
+
+function salvarLocalSomente() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+  } catch (e) {
+    toast('Erro ao salvar local', true);
+  }
+}
+
+// ============================================================================
 //  TABS E EVENTOS
 // ============================================================================
 function ativarTab(nome) {
@@ -2353,7 +2948,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Restaura handle de pasta de backup se houver
   dirHandle = await lerDirHandle();
+  usuario = obterUsuario();
+
+  // Restaurar modo compartilhado se estava ativo
+  if (estado.config.modoSincronizacao === 'compartilhado' && dirHandle && usuario) {
+    const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+    if (perm === 'granted') {
+      modoSincronizacao = 'compartilhado';
+      iniciarPolling();
+      iniciarHeartbeat();
+      enviarHeartbeat();
+    } else {
+      // Chrome não permite request automático sem interação — usuário precisa reativar
+      statusSync = 'desconectado';
+      toast('Modo compartilhado pausado — clique em "Salvar agora" ou aba Backup para reativar', false);
+    }
+  }
+  atualizarInfoUsuario();
+  atualizarStatusSync();
   await atualizarStatusProtecoes();
+  atualizarStatusCompartilhado();
 
   // Service worker
   registrarServiceWorker();
@@ -2408,6 +3022,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   document.getElementById('btn-desativar-pasta').addEventListener('click', desativarPastaBackup);
 
+  // Modo compartilhado
+  document.getElementById('btn-trocar-usuario').addEventListener('click', trocarUsuario);
+  document.getElementById('btn-ativar-compartilhado').addEventListener('click', ativarModoCompartilhado);
+  document.getElementById('btn-desativar-compartilhado').addEventListener('click', desativarModoCompartilhado);
+
   // Banner
   document.getElementById('banner-aviso-acao').addEventListener('click', () => {
     ativarTab('backup');
@@ -2425,6 +3044,7 @@ window.concluirContratacao = concluirContratacao;
 window.retornarDiligencia = retornarDiligencia;
 window.excluirProcesso = excluirProcesso;
 window.restaurarSnapshot = restaurarSnapshot;
+window.dispensarConflitos = dispensarConflitos;
 </script>
 </body>
 </html>
