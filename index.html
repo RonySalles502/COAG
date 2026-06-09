@@ -286,6 +286,28 @@
     font-weight: bold;
     cursor: help;
   }
+  .badge-atual {
+    color: var(--verde-claro);
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  #tabela-hist-setores input[type="date"],
+  #tabela-hist-setores select {
+    padding: 0.25rem 0.35rem;
+    font-size: 0.8rem;
+    width: 100%;
+  }
+  #tabela-hist-setores th {
+    padding: 0.3rem 0.4rem;
+  }
+  #tabela-hist-setores td {
+    padding: 0.25rem 0.4rem;
+    vertical-align: middle;
+  }
+  .hist-remover {
+    color: var(--vermelho-alerta);
+    font-weight: bold;
+  }
   .dias-medio { color: var(--amarelo-alerta); font-weight: bold; }
   .dias-atencao { color: var(--vermelho-alerta); font-weight: bold; }
   /* Tags de comissão no modal */
@@ -757,7 +779,7 @@
           <option value="aprovado_tramite">Aprovado (em trâmite)</option>
           <option value="concluido">Concluído</option>
           <option value="arquivado">Arquivado</option>
-          <option value="bloqueado_externo">Bloqueado externo</option>
+          <option value="bloqueado_externo">Em diligência externa</option>
         </select>
       </div>
       <div>
@@ -786,7 +808,6 @@
             <th>Coordenador</th>
             <th>Setor</th>
             <th class="num">Dias no setor</th>
-            <th>Criado</th>
             <th>Ações</th>
           </tr>
         </thead>
@@ -940,7 +961,7 @@
 
       <h3>Algoritmo de distribuição</h3>
       <ol style="font-size:0.9rem;">
-        <li>Soma de SCT ativa por servidor primário (Liza, Thiago, Lucas) — exclui processos em status <em>bloqueado externo</em>, <em>aprovado em trâmite</em>, <em>concluído</em> e <em>arquivado</em>.</li>
+        <li>Soma de SCT ativa por servidor primário (Liza, Thiago, Lucas) — exclui processos em status <em>em diligência externa</em>, <em>aprovado em trâmite</em>, <em>concluído</em> e <em>arquivado</em>.</li>
         <li>Atribui o coordenador (servidor primário com menor Σ SCT).</li>
         <li>Empate → desempate por rotação: vence quem recebeu o último processo há mais tempo (ou nunca recebeu).</li>
         <li>Se todos os primários ≥ limiar (configurável, padrão 12 SCT) → Matheus entra como suplente de elaboração.</li>
@@ -965,12 +986,13 @@
       </table>
       <p class="legenda-config">Ao adicionar/remover membros COAG da comissão, a carga é recalculada automaticamente. Isso pode mudar quem será o próximo coordenador na rodada seguinte de distribuição automática.</p>
 
-      <h3>Estados terminais e suas semânticas</h3>
+      <h3>Estados que não consomem carga ativa</h3>
       <table>
         <thead>
           <tr><th>Status</th><th>Significado</th><th>Pode voltar?</th></tr>
         </thead>
         <tbody>
+          <tr><td><strong>Em diligência externa</strong></td><td>Processo está fora da COAG, em diligência ativa em outro setor (CEAP, CTI, AJ, DPGE etc.). Não significa parado — significa que outro setor está atuando antes do TR ser aprovado.</td><td>Sim — automaticamente ao voltar para fluxo COAG (edição manual altera status e setor).</td></tr>
           <tr><td><strong>Aprovado em trâmite</strong></td><td>TR foi aprovado pela Kerolaine, mas o processo continua tramitando (CL, AJ, DPGE, homologação, parecer jurídico). Não consome carga ativa.</td><td>Sim — via "Retornar para diligência". Reatribui automaticamente ao servidor de elaboração original.</td></tr>
           <tr><td><strong>Concluído</strong></td><td>Objeto plenamente atingido: contrato firmado, ARP publicada, OS emitida, inexigibilidade efetivada.</td><td>Apenas editando manualmente.</td></tr>
           <tr><td><strong>Arquivado</strong></td><td>Encerramento sem conclusão normal: perda de objeto, oportunidade fracassada, sobrestamento permanente, cancelamento.</td><td>Sim — via "Desarquivar". Permite escolher para qual status retornar.</td></tr>
@@ -1134,7 +1156,7 @@ const STATUS_ROTULOS = {
   aprovado_tramite:     { texto: 'Aprovado (em trâmite)', classe: 'status-aprovado-tramite' },
   concluido:            { texto: 'Concluído',             classe: 'status-concluido' },
   arquivado:            { texto: 'Arquivado',             classe: 'status-arquivado' },
-  bloqueado_externo:    { texto: 'Bloqueado externo',     classe: 'status-bloqueado' }
+  bloqueado_externo:    { texto: 'Em diligência externa',  classe: 'status-bloqueado' }
 };
 
 // Setores da DPE/RN que podem ser destino/origem dos processos
@@ -1170,6 +1192,22 @@ function registrarMudancaSetor(p, novoSetor) {
 function diasNoSetorAtual(p) {
   if (!p.dataEntradaSetor) return 0;
   return Math.floor((Date.now() - p.dataEntradaSetor) / (1000 * 60 * 60 * 24));
+}
+
+// Conversão entre timestamp e formato YYYY-MM-DD (input type=date)
+function tsParaDateInput(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dia}`;
+}
+function dateInputParaTs(str) {
+  if (!str) return null;
+  // Interpreta como meia-noite local
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
 }
 
 function comissaoComoTexto(p) {
@@ -1645,7 +1683,7 @@ function renderProcessos() {
   });
 
   if (filtrados.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:2rem; color:var(--tinta-fraca); font-style:italic;">Nenhum processo encontrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:2rem; color:var(--tinta-fraca); font-style:italic;">Nenhum processo encontrado</td></tr>';
     return;
   }
 
@@ -1667,7 +1705,7 @@ function renderProcessos() {
     const info = STATUS_ROTULOS[status];
     html += `
       <tr class="grupo-header">
-        <td colspan="10">
+        <td colspan="9">
           <span class="badge ${info.classe}">${info.texto}</span>
           <span class="grupo-contagem">${lista.length} processo${lista.length !== 1 ? 's' : ''}</span>
         </td>
@@ -1722,7 +1760,6 @@ function renderProcessos() {
           <td>${servidorTxt}</td>
           <td>${p.setorAtual || '—'}</td>
           <td class="num">${diasTxt}</td>
-          <td style="font-size:0.75rem;">${p.criadoEm ? formatarData(p.criadoEm).split(' ')[0] : '—'}</td>
           <td>
             ${acoesExtra}
             <button class="btn pequeno secundario" onclick="abrirEdicao('${p.id}')">Editar</button>
@@ -1973,7 +2010,7 @@ function desarquivarProcesso(id) {
   if (!p || p.status !== 'arquivado') return;
   const opcoes = [
     '1 — Em elaboração (volta para o servidor)',
-    '2 — Bloqueado externo (aguardando retorno)',
+    '2 — Em diligência externa (aguardando retorno)',
     '3 — Revisão (Matheus)',
     '4 — Aprovação (Kerolaine)',
     '5 — Aprovado em trâmite',
@@ -2054,12 +2091,26 @@ function abrirEdicao(id) {
   document.getElementById('modal-titulo').textContent = `Editar ${p.sei}`;
   // Lista de candidatos a coordenador (servidores primários + Matheus)
   const candidatosCoord = [...SERVIDORES_PRIMARIOS, MATHEUS];
-  // Histórico de setores formatado
-  const histSetores = (p.historicoSetores || []).map(h => {
-    const dias = h.diasNoSetor !== null ? h.diasNoSetor : Math.floor((Date.now() - h.entrouEm) / (1000 * 60 * 60 * 24));
-    const entrou = new Date(h.entrouEm).toLocaleDateString('pt-BR');
-    const saiu = h.saiuEm ? new Date(h.saiuEm).toLocaleDateString('pt-BR') : '<em>atual</em>';
-    return `<tr><td>${h.setor}</td><td>${entrou}</td><td>${saiu}</td><td class="num">${dias}</td></tr>`;
+  // Histórico de setores editável
+  const histSetoresOrdenado = [...(p.historicoSetores || [])].sort((a, b) => (a.entrouEm || 0) - (b.entrouEm || 0));
+  const histRows = histSetoresOrdenado.map((h, i) => {
+    const diasCalc = h.saiuEm !== null
+      ? Math.floor((h.saiuEm - h.entrouEm) / (1000 * 60 * 60 * 24))
+      : Math.floor((Date.now() - h.entrouEm) / (1000 * 60 * 60 * 24));
+    return `
+      <tr data-idx="${i}">
+        <td>
+          <select class="hist-setor" data-idx="${i}">
+            ${SETORES_DPE.map(s => `<option value="${s}" ${h.setor === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </td>
+        <td><input type="date" class="hist-entrou" data-idx="${i}" value="${tsParaDateInput(h.entrouEm)}"></td>
+        <td><input type="date" class="hist-saiu" data-idx="${i}" value="${h.saiuEm !== null ? tsParaDateInput(h.saiuEm) : ''}" placeholder="(em curso)"></td>
+        <td class="num"><span class="hist-dias-calc" data-idx="${i}">${diasCalc}</span></td>
+        <td>${h.saiuEm === null ? '<span class="badge-atual" title="Período em curso">●</span>' : ''}</td>
+        <td><button type="button" class="hist-remover btn pequeno secundario" data-idx="${i}" title="Remover período">×</button></td>
+      </tr>
+    `;
   }).join('');
   // Membros da comissão (excluindo o coordenador)
   const comissaoTags = (p.comissaoElaboracao || []).map((m, i) =>
@@ -2126,11 +2177,15 @@ function abrirEdicao(id) {
         <textarea id="edit-obs">${p.observacoes || ''}</textarea>
       </div>
       <div class="full" style="grid-column:1/-1;">
-        <label>Histórico de setores</label>
-        <table style="font-size:0.78rem; width:100%;">
-          <thead><tr><th>Setor</th><th>Entrou</th><th>Saiu</th><th class="num">Dias</th></tr></thead>
-          <tbody>${histSetores || '<tr><td colspan="4" style="color:var(--tinta-fraca);font-style:italic;">Sem histórico registrado</td></tr>'}</tbody>
+        <label>Histórico de setores <small>edite datas para reconstruir o trajeto do processo; deixe "Saiu" em branco para período em curso</small></label>
+        <table id="tabela-hist-setores" style="font-size:0.78rem; width:100%;">
+          <thead><tr><th>Setor</th><th>Entrou</th><th>Saiu</th><th class="num">Dias</th><th></th><th></th></tr></thead>
+          <tbody id="hist-setores-tbody">${histRows || '<tr><td colspan="6" style="color:var(--tinta-fraca);font-style:italic;">Sem histórico registrado</td></tr>'}</tbody>
         </table>
+        <button type="button" class="btn pequeno secundario" id="btn-adicionar-periodo" style="margin-top:0.4rem;">+ Adicionar período</button>
+        <p class="legenda-config" style="margin-top:0.4rem;">
+          Ao salvar, o histórico é a <strong>fonte de verdade</strong> do setor atual. O setor do período em curso (sem data de saída) sobrescreve a seleção "Setor atual" acima.
+        </p>
       </div>
     </div>
     <div style="margin-top:0.75rem;">
@@ -2158,16 +2213,104 @@ function abrirEdicao(id) {
       abrirEdicao(id);
     });
   });
+  // Listeners do histórico de setores
+  document.getElementById('btn-adicionar-periodo').addEventListener('click', () => {
+    p.historicoSetores = p.historicoSetores || [];
+    // Por padrão: setor = setor atual, entrouEm = hoje, saiuEm = null se ninguém estiver "em curso", senão data atual
+    const algumEmCurso = p.historicoSetores.some(h => h.saiuEm === null);
+    const hoje = Date.now();
+    p.historicoSetores.push({
+      setor: p.setorAtual || 'COAG',
+      entrouEm: hoje,
+      saiuEm: algumEmCurso ? hoje : null,
+      diasNoSetor: algumEmCurso ? 0 : null
+    });
+    abrirEdicao(id);
+  });
+  document.querySelectorAll('.hist-remover').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      if (!confirm('Remover este período do histórico?')) return;
+      const histOrdenado = [...(p.historicoSetores || [])].sort((a, b) => (a.entrouEm || 0) - (b.entrouEm || 0));
+      histOrdenado.splice(idx, 1);
+      p.historicoSetores = histOrdenado;
+      abrirEdicao(id);
+    });
+  });
+  // Recalcular dias ao mudar datas em uma linha
+  function recalcularDiasLinha(idx) {
+    const entrouStr = document.querySelector(`.hist-entrou[data-idx="${idx}"]`)?.value;
+    const saiuStr = document.querySelector(`.hist-saiu[data-idx="${idx}"]`)?.value;
+    const span = document.querySelector(`.hist-dias-calc[data-idx="${idx}"]`);
+    if (!span) return;
+    const entrouTs = dateInputParaTs(entrouStr);
+    if (!entrouTs) { span.textContent = '?'; return; }
+    const ate = saiuStr ? dateInputParaTs(saiuStr) : Date.now();
+    span.textContent = Math.floor((ate - entrouTs) / (1000 * 60 * 60 * 24));
+  }
+  document.querySelectorAll('.hist-entrou, .hist-saiu').forEach(input => {
+    input.addEventListener('change', () => recalcularDiasLinha(input.dataset.idx));
+  });
   document.getElementById('modal-edicao').classList.add('aberto');
 }
 function fecharEdicao() {
   document.getElementById('modal-edicao').classList.remove('aberto');
   editandoId = null;
 }
+function coletarHistoricoEditado() {
+  const rows = document.querySelectorAll('#hist-setores-tbody tr[data-idx]');
+  if (rows.length === 0) return { ok: true, historico: [] };
+  const novo = [];
+  let qtdEmCurso = 0;
+  for (const row of rows) {
+    const setor = row.querySelector('.hist-setor')?.value;
+    const entrouStr = row.querySelector('.hist-entrou')?.value;
+    const saiuStr = row.querySelector('.hist-saiu')?.value;
+    if (!setor) return { ok: false, erro: 'Setor não selecionado em um dos períodos' };
+    if (!entrouStr) return { ok: false, erro: `Período em ${setor}: data de entrada obrigatória` };
+    const entrouEm = dateInputParaTs(entrouStr);
+    const saiuEm = saiuStr ? dateInputParaTs(saiuStr) : null;
+    if (saiuEm !== null && saiuEm < entrouEm) {
+      return { ok: false, erro: `Período em ${setor}: data de saída (${saiuStr}) anterior à entrada (${entrouStr})` };
+    }
+    if (saiuEm === null) qtdEmCurso++;
+    novo.push({
+      setor,
+      entrouEm,
+      saiuEm,
+      diasNoSetor: saiuEm !== null ? Math.floor((saiuEm - entrouEm) / (1000 * 60 * 60 * 24)) : null
+    });
+  }
+  if (qtdEmCurso > 1) {
+    return { ok: false, erro: 'Apenas um período pode estar em curso (saída em branco). Hoje há ' + qtdEmCurso + '.' };
+  }
+  // Ordena por data de entrada
+  novo.sort((a, b) => a.entrouEm - b.entrouEm);
+  // Valida sobreposição cronológica
+  for (let i = 1; i < novo.length; i++) {
+    const anterior = novo[i - 1];
+    if (anterior.saiuEm === null) {
+      return { ok: false, erro: 'Período em curso deve ser o último cronologicamente — há período após ele' };
+    }
+    if (anterior.saiuEm > novo[i].entrouEm) {
+      const dataAnt = new Date(anterior.saiuEm).toLocaleDateString('pt-BR');
+      const dataAtual = new Date(novo[i].entrouEm).toLocaleDateString('pt-BR');
+      return { ok: false, erro: `Sobreposição: ${anterior.setor} sai em ${dataAnt} mas ${novo[i].setor} entra em ${dataAtual}` };
+    }
+  }
+  return { ok: true, historico: novo };
+}
+
 function salvarEdicao() {
   if (!editandoId) return;
   const p = estado.processos.find(x => x.id === editandoId);
   if (!p) return;
+  // Antes de qualquer alteração, valida o histórico de setores
+  const resultado = coletarHistoricoEditado();
+  if (!resultado.ok) {
+    toast('Erro no histórico: ' + resultado.erro, true);
+    return;
+  }
   p.objeto = document.getElementById('edit-objeto').value.trim();
   p.servidorElaboracao = document.getElementById('edit-servidor').value || null;
   const novoStatus = document.getElementById('edit-status').value;
@@ -2175,17 +2318,29 @@ function salvarEdicao() {
     p.entrouFilaEm = Date.now();
   }
   p.status = novoStatus;
-  // Setor atual: se status COAG-interno, força COAG; senão, respeita escolha
-  let setorFinal = document.getElementById('edit-setor').value;
-  if (['elaboracao', 'revisao_matheus', 'aprovacao_kerolaine'].includes(novoStatus)) {
-    setorFinal = 'COAG';
-  }
-  if (setorFinal !== p.setorAtual) {
-    registrarMudancaSetor(p, setorFinal);
-  }
   p.sctFinal = parseFloat(document.getElementById('edit-sct').value) || 0;
   p.observacoes = document.getElementById('edit-obs').value.trim();
   p.ultimaAtualizacao = Date.now();
+  // Aplica histórico editado e deriva setorAtual + dataEntradaSetor
+  p.historicoSetores = resultado.historico;
+  if (resultado.historico.length > 0) {
+    // Período em curso vence; senão, último encerrado
+    const emCurso = resultado.historico.find(h => h.saiuEm === null);
+    const referencia = emCurso || resultado.historico[resultado.historico.length - 1];
+    p.setorAtual = referencia.setor;
+    p.dataEntradaSetor = referencia.entrouEm;
+  } else {
+    // Sem histórico: força COAG agora
+    const setorSelect = document.getElementById('edit-setor');
+    const setorEscolhido = setorSelect ? setorSelect.value : 'COAG';
+    if (setorEscolhido !== p.setorAtual) {
+      registrarMudancaSetor(p, setorEscolhido);
+    }
+  }
+  // Força COAG para status internos (regra de coerência)
+  if (['elaboracao', 'revisao_matheus', 'aprovacao_kerolaine'].includes(novoStatus) && p.setorAtual !== 'COAG') {
+    registrarMudancaSetor(p, 'COAG');
+  }
   p.historico = p.historico || [];
   p.historico.push({ ts: Date.now(), evento: 'Edição manual' });
   salvar();
