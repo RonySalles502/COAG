@@ -754,7 +754,7 @@
     <h2>Processos Cadastrados</h2>
     <div class="filtros">
       <div>
-        <label>Filtrar por servidor</label>
+        <label>Filtrar por responsável</label>
         <select id="filtro-servidor">
           <option value="">Todos</option>
         </select>
@@ -805,7 +805,7 @@
             <th>Tipo</th>
             <th>Nível</th>
             <th class="num">SCT</th>
-            <th>Coordenador</th>
+            <th>Responsável</th>
             <th>Setor</th>
             <th class="num">Dias no setor</th>
             <th>Ações</th>
@@ -1730,19 +1730,35 @@ function renderProcessos() {
       } else if (!ehTerminal && !ehAprovadoTramite) {
         acoesExtra += `<button class="btn pequeno secundario" onclick="arquivarProcesso('${p.id}')">Arquivar</button>`;
       }
-      // Servidor + indicador de comissão
-      const numComissao = (p.comissaoElaboracao || []).length;
-      const coagEnvolvidos = servidoresCOAGEnvolvidos(p);
-      const servidorTxt = p.servidorElaboracao
-        ? p.servidorElaboracao + (numComissao > 0 ? ` <span class="badge-comissao" title="Comissão: ${comissaoComoTexto(p)}">+${numComissao}</span>` : '')
-        : '<em style="color:var(--tinta-fraca);">—</em>';
+      // Responsável(eis) — quando há comissão, lista todos
+      const coag = servidoresCOAGEnvolvidos(p);
+      const comissao = p.comissaoElaboracao || [];
+      let responsavelTxt;
+      if (!p.servidorElaboracao && comissao.length === 0) {
+        responsavelTxt = '<em style="color:var(--tinta-fraca);">—</em>';
+      } else {
+        const partes = [];
+        if (p.servidorElaboracao) {
+          partes.push(`<strong title="Coordenador">${p.servidorElaboracao}</strong>`);
+        }
+        for (const m of comissao) {
+          if (ehServidorCOAG(m)) {
+            partes.push(`<span title="COAG (recebe carga)">${m}</span>`);
+          } else {
+            partes.push(`<em style="color:var(--tinta-suave);" title="Externo (sem carga)">${m}</em>`);
+          }
+        }
+        const tooltip = `Coordenador: ${p.servidorElaboracao || '—'}` +
+                        (comissao.length > 0 ? ` · Comissão: ${comissao.join(', ')}` : '');
+        responsavelTxt = `<span title="${tooltip.replace(/"/g, '&quot;')}">${partes.join(', ')}</span>`;
+      }
       // SCT total + divisão se houver mais de um COAG envolvido
       const sctTotal = (p.sctFinal || 0).toFixed(1);
       let sctTxt = sctTotal;
-      if (coagEnvolvidos.length > 1) {
-        const fatia = (p.sctFinal / coagEnvolvidos.length).toFixed(1);
-        sctTxt = `<span title="Dividido entre ${coagEnvolvidos.join(', ')} → ${fatia} cada">${sctTotal} <span class="badge-divisao">÷${coagEnvolvidos.length}</span></span>`;
-      } else if (coagEnvolvidos.length === 0) {
+      if (coag.length > 1) {
+        const fatia = (p.sctFinal / coag.length).toFixed(1);
+        sctTxt = `<span title="Dividido entre ${coag.join(', ')} → ${fatia} cada">${sctTotal} <span class="badge-divisao">÷${coag.length}</span></span>`;
+      } else if (coag.length === 0) {
         sctTxt = `<span title="Nenhum servidor COAG envolvido — carga = 0" style="color:var(--tinta-fraca);">${sctTotal} <span class="badge-divisao" style="background:var(--tinta-fraca);">externo</span></span>`;
       }
       // Dias no setor
@@ -1757,7 +1773,7 @@ function renderProcessos() {
           <td><span class="badge tipo">${tipo ? tipo.rotulo : '?'}</span></td>
           <td>${p.nivelCodigo ? `<span class="badge ${nivelClasse}">${p.nivelCodigo}</span>` : '—'}</td>
           <td class="num">${sctTxt}</td>
-          <td>${servidorTxt}</td>
+          <td>${responsavelTxt}</td>
           <td>${p.setorAtual || '—'}</td>
           <td class="num">${diasTxt}</td>
           <td>
