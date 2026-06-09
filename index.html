@@ -247,6 +247,75 @@
   }
   table tr:hover { background: var(--verde-tenue); }
   table td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  /* Grupos por status na tabela */
+  tr.grupo-header {
+    background: var(--verde-tenue) !important;
+  }
+  tr.grupo-header td {
+    padding: 0.6rem 0.6rem 0.3rem;
+    border-top: 2px solid var(--borda-forte);
+    border-bottom: 1px solid var(--borda);
+    font-weight: bold;
+  }
+  tr.grupo-header:hover { background: var(--verde-tenue) !important; }
+  .grupo-contagem {
+    margin-left: 0.6rem;
+    font-size: 0.75rem;
+    color: var(--tinta-suave);
+    font-style: italic;
+    font-weight: normal;
+  }
+  .badge-comissao {
+    display: inline-block;
+    background: var(--azul-info);
+    color: var(--papel);
+    padding: 0.05rem 0.35rem;
+    font-size: 0.7rem;
+    border-radius: 8px;
+    margin-left: 0.2rem;
+    cursor: help;
+  }
+  .badge-divisao {
+    display: inline-block;
+    background: var(--amarelo-alerta);
+    color: var(--papel);
+    padding: 0.05rem 0.3rem;
+    font-size: 0.65rem;
+    border-radius: 3px;
+    margin-left: 0.2rem;
+    font-weight: bold;
+    cursor: help;
+  }
+  .dias-medio { color: var(--amarelo-alerta); font-weight: bold; }
+  .dias-atencao { color: var(--vermelho-alerta); font-weight: bold; }
+  /* Tags de comissão no modal */
+  .comissao-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    min-height: 1.8rem;
+    align-items: center;
+  }
+  .comissao-tag {
+    display: inline-flex;
+    align-items: center;
+    background: var(--verde-tenue);
+    border: 1px solid var(--verde-claro);
+    color: var(--verde-dpe);
+    padding: 0.15rem 0.5rem;
+    font-size: 0.8rem;
+    border-radius: 12px;
+  }
+  .comissao-tag .remover-comissao {
+    background: transparent;
+    border: none;
+    color: var(--vermelho-alerta);
+    font-size: 1rem;
+    line-height: 1;
+    margin-left: 0.3rem;
+    cursor: pointer;
+    padding: 0 0.2rem;
+  }
   /* Badges */
   .badge {
     display: inline-block;
@@ -714,10 +783,10 @@
             <th>Tipo</th>
             <th>Nível</th>
             <th class="num">SCT</th>
-            <th>Servidor</th>
-            <th>Status</th>
-            <th>Aguarda</th>
-            <th>Atualizado</th>
+            <th>Coordenador</th>
+            <th>Setor</th>
+            <th class="num">Dias no setor</th>
+            <th>Criado</th>
             <th>Ações</th>
           </tr>
         </thead>
@@ -872,12 +941,29 @@
       <h3>Algoritmo de distribuição</h3>
       <ol style="font-size:0.9rem;">
         <li>Soma de SCT ativa por servidor primário (Liza, Thiago, Lucas) — exclui processos em status <em>bloqueado externo</em>, <em>aprovado em trâmite</em>, <em>concluído</em> e <em>arquivado</em>.</li>
-        <li>Atribui ao servidor com menor Σ SCT.</li>
+        <li>Atribui o coordenador (servidor primário com menor Σ SCT).</li>
         <li>Empate → desempate por rotação: vence quem recebeu o último processo há mais tempo (ou nunca recebeu).</li>
         <li>Se todos os primários ≥ limiar (configurável, padrão 12 SCT) → Matheus entra como suplente de elaboração.</li>
         <li><strong>Completo / Apenas TR</strong>: elaboração → revisão Matheus → aprovação Kerolaine → <em>aprovado em trâmite</em> → <em>concluído</em>.</li>
         <li><strong>Aditivo / Apostilamento</strong>: elaboração → <em>concluído</em>. Fluxo direto — servidor designado é responsável integral.</li>
       </ol>
+
+      <h3>Comissão de planejamento e divisão de carga</h3>
+      <p style="font-size:0.9rem;">Processos que formam comissão podem ter servidores adicionais além do coordenador. Servidores COAG (Liza, Thiago, Lucas, Matheus) dividem a carga igualmente. Servidores externos (de outras unidades) entram apenas como registro — não recebem carga.</p>
+      <table>
+        <thead>
+          <tr><th>Cenário</th><th>SCT total</th><th>Servidores COAG envolvidos</th><th>Carga por servidor COAG</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Coordenador único (sem comissão)</td><td>8</td><td>1 (coordenador)</td><td>8</td></tr>
+          <tr><td>Coordenador + 1 membro COAG</td><td>8</td><td>2</td><td>4</td></tr>
+          <tr><td>Coordenador + 2 membros COAG + 1 externo</td><td>8</td><td>3</td><td>≈ 2,67</td></tr>
+          <tr><td>Coordenador COAG + 3 externos</td><td>8</td><td>1 (só o coordenador)</td><td>8</td></tr>
+          <tr><td>Coordenador externo + 2 COAG</td><td>8</td><td>2</td><td>4</td></tr>
+          <tr><td>Coordenador externo + só externos</td><td>8</td><td>0</td><td>0 (processo não pesa na COAG)</td></tr>
+        </tbody>
+      </table>
+      <p class="legenda-config">Ao adicionar/remover membros COAG da comissão, a carga é recalculada automaticamente. Isso pode mudar quem será o próximo coordenador na rodada seguinte de distribuição automática.</p>
 
       <h3>Estados terminais e suas semânticas</h3>
       <table>
@@ -1051,6 +1137,73 @@ const STATUS_ROTULOS = {
   bloqueado_externo:    { texto: 'Bloqueado externo',     classe: 'status-bloqueado' }
 };
 
+// Setores da DPE/RN que podem ser destino/origem dos processos
+const SETORES_DPE = ['COAG', 'CFCC', 'SPL', 'CEAP', 'CTI', 'DPGE', 'SDPGE', 'RH', 'COPC', 'AJ', 'SRST', 'SDSP', 'Outro'];
+
+// Ordem visual dos grupos na tabela de processos
+const ORDEM_STATUS_GRUPOS = [
+  'elaboracao',
+  'revisao_matheus',
+  'aprovacao_kerolaine',
+  'bloqueado_externo',
+  'aprovado_tramite',
+  'concluido',
+  'arquivado'
+];
+
+// Helpers de setor e tempo no setor
+function registrarMudancaSetor(p, novoSetor) {
+  const agora = Date.now();
+  if (p.setorAtual === novoSetor) return; // sem mudança real
+  // Fecha o período anterior, se existir
+  p.historicoSetores = p.historicoSetores || [];
+  const aberto = p.historicoSetores.find(h => h.saiuEm === null);
+  if (aberto) {
+    aberto.saiuEm = agora;
+    aberto.diasNoSetor = Math.floor((agora - aberto.entrouEm) / (1000 * 60 * 60 * 24));
+  }
+  p.historicoSetores.push({ setor: novoSetor, entrouEm: agora, saiuEm: null, diasNoSetor: null });
+  p.setorAtual = novoSetor;
+  p.dataEntradaSetor = agora;
+}
+
+function diasNoSetorAtual(p) {
+  if (!p.dataEntradaSetor) return 0;
+  return Math.floor((Date.now() - p.dataEntradaSetor) / (1000 * 60 * 60 * 24));
+}
+
+function comissaoComoTexto(p) {
+  if (!p.comissaoElaboracao || p.comissaoElaboracao.length === 0) return '';
+  return p.comissaoElaboracao.join(', ');
+}
+
+// Servidores COAG (que recebem carga). Os demais são externos (apoio, sem carga)
+function ehServidorCOAG(nome) {
+  if (!nome) return false;
+  return SERVIDORES_PRIMARIOS.includes(nome) || nome === MATHEUS;
+}
+
+// Lista de servidores COAG envolvidos no processo (coordenador + membros COAG da comissão)
+function servidoresCOAGEnvolvidos(p) {
+  const set = new Set();
+  if (p.servidorElaboracao && ehServidorCOAG(p.servidorElaboracao)) {
+    set.add(p.servidorElaboracao);
+  }
+  for (const m of (p.comissaoElaboracao || [])) {
+    if (ehServidorCOAG(m)) set.add(m);
+  }
+  return Array.from(set);
+}
+
+// Fatia de SCT que um servidor recebe deste processo (0 se não envolvido ou se externo)
+function cargaPorServidor(p, servidor) {
+  if (!ehServidorCOAG(servidor)) return 0;
+  const envolvidos = servidoresCOAGEnvolvidos(p);
+  if (envolvidos.length === 0) return 0;
+  if (!envolvidos.includes(servidor)) return 0;
+  return (p.sctFinal || 0) / envolvidos.length;
+}
+
 const NIVEIS = [
   { codigo: 'N1', max: 2,  sct: 1 },
   { codigo: 'N2', max: 5,  sct: 2 },
@@ -1127,12 +1280,16 @@ const SEED_PROCESSOS_2026 = [
 
 function popularComSeed() {
   const agora = Date.now();
-  // espalha timestamps em 1 ms cada para preservar ordem mas manter "mais antigos"
-  // com timestamps menores (rotação funciona corretamente)
   estado.processos = SEED_PROCESSOS_2026.map((s, i) => {
     const dim = { A: s.A, B: s.B, C: s.C, D: s.D, E: s.E };
     const calc = calcularSCT(s.tipo, dim);
-    const ts = agora - (SEED_PROCESSOS_2026.length - i); // mais antigos primeiro
+    const ts = agora - (SEED_PROCESSOS_2026.length - i);
+    // Setor atual: se status é COAG-interno, é COAG; senão, usa o que está em s.aguarda
+    const statusCOAG = ['elaboracao', 'revisao_matheus', 'aprovacao_kerolaine'].includes(s.status);
+    let setor;
+    if (statusCOAG) setor = 'COAG';
+    else if (s.aguarda) setor = SETORES_DPE.includes(s.aguarda) ? s.aguarda : 'Outro';
+    else setor = 'COAG';
     return {
       id: 'seed_' + i.toString().padStart(3, '0'),
       sei: s.sei,
@@ -1145,12 +1302,16 @@ function popularComSeed() {
       modificador: calc.modificador,
       sctFinal: calc.sctFinal,
       servidorElaboracao: s.servidor,
+      comissaoElaboracao: [],
       status: s.status,
-      aguardandoExterno: s.aguarda,
+      setorAtual: setor,
+      dataEntradaSetor: ts,
+      historicoSetores: [{ setor, entrouEm: ts, saiuEm: null, diasNoSetor: null }],
       observacoes: 'Seed planilha 2026 (snapshot 05/05/2026) — revisar score e tipo',
       criadoEm: ts,
       ultimaAtualizacao: ts,
       entrouFilaEm: s.status === 'revisao_matheus' || s.status === 'aprovacao_kerolaine' ? ts : null,
+      versao: 0,
       historico: [{ ts, evento: 'Carregado do snapshot da planilha 2026' }]
     };
   });
@@ -1179,6 +1340,38 @@ function carregar() {
     if ('fiscalElaboracao' in p && !('servidorElaboracao' in p)) {
       p.servidorElaboracao = p.fiscalElaboracao;
       delete p.fiscalElaboracao;
+    }
+    // Migração de aguardandoExterno → setorAtual
+    if (!('setorAtual' in p)) {
+      // Se status é COAG-interno, setor é COAG; senão, usa aguardandoExterno se houver
+      const statusCOAG = ['elaboracao', 'revisao_matheus', 'aprovacao_kerolaine'].includes(p.status);
+      if (statusCOAG) {
+        p.setorAtual = 'COAG';
+      } else if (p.aguardandoExterno) {
+        // Mapeia setor legado para os 12 padronizados
+        const setor = p.aguardandoExterno;
+        p.setorAtual = SETORES_DPE.includes(setor) ? setor : 'Outro';
+      } else {
+        p.setorAtual = 'COAG';
+      }
+      delete p.aguardandoExterno;
+    }
+    // Garantir dataEntradaSetor (= criadoEm se não houver melhor referência)
+    if (!p.dataEntradaSetor) {
+      p.dataEntradaSetor = p.criadoEm || Date.now();
+    }
+    // Garantir historicoSetores
+    if (!Array.isArray(p.historicoSetores) || p.historicoSetores.length === 0) {
+      p.historicoSetores = [{
+        setor: p.setorAtual,
+        entrouEm: p.dataEntradaSetor,
+        saiuEm: null,
+        diasNoSetor: null
+      }];
+    }
+    // Garantir comissaoElaboracao
+    if (!Array.isArray(p.comissaoElaboracao)) {
+      p.comissaoElaboracao = [];
     }
     if (p.tipoDemanda === 'aditivo' && p.sctFinal !== TIPOS_DEMANDA.aditivo.sctFixo) {
       p.sctBase = TIPOS_DEMANDA.aditivo.sctFixo;
@@ -1257,12 +1450,11 @@ function calcularSCT(tipo, dim) {
 // ============================================================================
 function somaSCTAtiva(servidor) {
   return estado.processos
-    .filter(p => p.servidorElaboracao === servidor
-              && p.status !== 'aprovado_tramite'
+    .filter(p => p.status !== 'aprovado_tramite'
               && p.status !== 'concluido'
               && p.status !== 'arquivado'
               && p.status !== 'bloqueado_externo')
-    .reduce((soma, p) => soma + (p.sctFinal || 0), 0);
+    .reduce((soma, p) => soma + cargaPorServidor(p, servidor), 0);
 }
 function ultimoTimestamp(servidor) {
   const procs = estado.processos.filter(p => p.servidorElaboracao === servidor);
@@ -1444,7 +1636,7 @@ function renderProcessos() {
 
   const tbody = document.querySelector('#tabela-processos tbody');
   const filtrados = estado.processos.filter(p => {
-    if (ff && p.servidorElaboracao !== ff) return false;
+    if (ff && p.servidorElaboracao !== ff && !(p.comissaoElaboracao || []).includes(ff)) return false;
     if (fn && (p.nivelCodigo || '') !== fn) return false;
     if (fs && p.status !== fs) return false;
     if (ft && p.tipoDemanda !== ft) return false;
@@ -1457,48 +1649,89 @@ function renderProcessos() {
     return;
   }
 
-  filtrados.sort((a, b) => (b.ultimaAtualizacao || 0) - (a.ultimaAtualizacao || 0));
+  // Agrupa por status e ordena dentro do grupo por dias no setor (decrescente)
+  const grupos = new Map();
+  for (const status of ORDEM_STATUS_GRUPOS) grupos.set(status, []);
+  for (const p of filtrados) {
+    const arr = grupos.get(p.status) || [];
+    arr.push(p);
+    grupos.set(p.status, arr);
+  }
 
-  tbody.innerHTML = filtrados.map(p => {
-    const tipo = TIPOS_DEMANDA[p.tipoDemanda];
-    const statusInfo = STATUS_ROTULOS[p.status] || { texto: p.status, classe: '' };
-    const nivelClasse = (p.nivelCodigo || 'n1').toLowerCase();
-    const ehAditivoAtivo = p.tipoDemanda === 'aditivo' && p.status === 'elaboracao';
-    const ehAprovadoTramite = p.status === 'aprovado_tramite';
-    const ehArquivado = p.status === 'arquivado';
-    const ehTerminal = p.status === 'concluido' || p.status === 'arquivado';
-    let acoesExtra = '';
-    if (ehAditivoAtivo) {
-      // Aditivo concluído vai direto para concluido (sem trâmite pós-aprovação)
-      acoesExtra += `<button class="btn pequeno" onclick="avancarStatus('${p.id}', 'concluido')">Concluir</button>`;
-    }
-    if (ehAprovadoTramite) {
-      acoesExtra += `<button class="btn pequeno" onclick="concluirContratacao('${p.id}')">Concluir contratação</button>`;
-      acoesExtra += `<button class="btn pequeno secundario" onclick="retornarDiligencia('${p.id}')">Retornar p/ diligência</button>`;
-    }
-    if (ehArquivado) {
-      acoesExtra += `<button class="btn pequeno secundario" onclick="desarquivarProcesso('${p.id}')">Desarquivar</button>`;
-    } else if (!ehTerminal && !ehAprovadoTramite) {
-      acoesExtra += `<button class="btn pequeno secundario" onclick="arquivarProcesso('${p.id}')">Arquivar</button>`;
-    }
-    return `
-      <tr>
-        <td><code style="font-size:0.78rem;">${p.sei || '—'}</code></td>
-        <td>${p.objeto || '—'}</td>
-        <td><span class="badge tipo">${tipo ? tipo.rotulo : '?'}</span></td>
-        <td>${p.nivelCodigo ? `<span class="badge ${nivelClasse}">${p.nivelCodigo}</span>` : '—'}</td>
-        <td class="num">${(p.sctFinal || 0).toFixed(1)}</td>
-        <td>${p.servidorElaboracao || '—'}</td>
-        <td><span class="badge ${statusInfo.classe}">${statusInfo.texto}</span></td>
-        <td>${p.aguardandoExterno || '—'}</td>
-        <td style="font-size:0.75rem;">${formatarData(p.ultimaAtualizacao)}</td>
-        <td>
-          ${acoesExtra}
-          <button class="btn pequeno secundario" onclick="abrirEdicao('${p.id}')">Editar</button>
+  let html = '';
+  for (const status of ORDEM_STATUS_GRUPOS) {
+    const lista = grupos.get(status) || [];
+    if (lista.length === 0) continue;
+    // ordena por dias no setor (mais antigo primeiro — sinaliza atenção)
+    lista.sort((a, b) => diasNoSetorAtual(b) - diasNoSetorAtual(a));
+    const info = STATUS_ROTULOS[status];
+    html += `
+      <tr class="grupo-header">
+        <td colspan="10">
+          <span class="badge ${info.classe}">${info.texto}</span>
+          <span class="grupo-contagem">${lista.length} processo${lista.length !== 1 ? 's' : ''}</span>
         </td>
-      </tr>
-    `;
-  }).join('');
+      </tr>`;
+    html += lista.map(p => {
+      const tipo = TIPOS_DEMANDA[p.tipoDemanda];
+      const nivelClasse = (p.nivelCodigo || 'n1').toLowerCase();
+      const ehAditivoAtivo = p.tipoDemanda === 'aditivo' && p.status === 'elaboracao';
+      const ehAprovadoTramite = p.status === 'aprovado_tramite';
+      const ehArquivado = p.status === 'arquivado';
+      const ehTerminal = p.status === 'concluido' || p.status === 'arquivado';
+      let acoesExtra = '';
+      if (ehAditivoAtivo) {
+        acoesExtra += `<button class="btn pequeno" onclick="avancarStatus('${p.id}', 'concluido')">Concluir</button>`;
+      }
+      if (ehAprovadoTramite) {
+        acoesExtra += `<button class="btn pequeno" onclick="concluirContratacao('${p.id}')">Concluir contratação</button>`;
+        acoesExtra += `<button class="btn pequeno secundario" onclick="retornarDiligencia('${p.id}')">Retornar p/ diligência</button>`;
+      }
+      if (ehArquivado) {
+        acoesExtra += `<button class="btn pequeno secundario" onclick="desarquivarProcesso('${p.id}')">Desarquivar</button>`;
+      } else if (!ehTerminal && !ehAprovadoTramite) {
+        acoesExtra += `<button class="btn pequeno secundario" onclick="arquivarProcesso('${p.id}')">Arquivar</button>`;
+      }
+      // Servidor + indicador de comissão
+      const numComissao = (p.comissaoElaboracao || []).length;
+      const coagEnvolvidos = servidoresCOAGEnvolvidos(p);
+      const servidorTxt = p.servidorElaboracao
+        ? p.servidorElaboracao + (numComissao > 0 ? ` <span class="badge-comissao" title="Comissão: ${comissaoComoTexto(p)}">+${numComissao}</span>` : '')
+        : '<em style="color:var(--tinta-fraca);">—</em>';
+      // SCT total + divisão se houver mais de um COAG envolvido
+      const sctTotal = (p.sctFinal || 0).toFixed(1);
+      let sctTxt = sctTotal;
+      if (coagEnvolvidos.length > 1) {
+        const fatia = (p.sctFinal / coagEnvolvidos.length).toFixed(1);
+        sctTxt = `<span title="Dividido entre ${coagEnvolvidos.join(', ')} → ${fatia} cada">${sctTotal} <span class="badge-divisao">÷${coagEnvolvidos.length}</span></span>`;
+      } else if (coagEnvolvidos.length === 0) {
+        sctTxt = `<span title="Nenhum servidor COAG envolvido — carga = 0" style="color:var(--tinta-fraca);">${sctTotal} <span class="badge-divisao" style="background:var(--tinta-fraca);">externo</span></span>`;
+      }
+      // Dias no setor
+      const dias = diasNoSetorAtual(p);
+      const diasTxt = ehTerminal
+        ? '<span style="color:var(--tinta-fraca);">—</span>'
+        : `<span class="${dias >= 30 ? 'dias-atencao' : dias >= 15 ? 'dias-medio' : ''}">${dias} d</span>`;
+      return `
+        <tr>
+          <td><code style="font-size:0.78rem;">${p.sei || '—'}</code></td>
+          <td>${p.objeto || '—'}</td>
+          <td><span class="badge tipo">${tipo ? tipo.rotulo : '?'}</span></td>
+          <td>${p.nivelCodigo ? `<span class="badge ${nivelClasse}">${p.nivelCodigo}</span>` : '—'}</td>
+          <td class="num">${sctTxt}</td>
+          <td>${servidorTxt}</td>
+          <td>${p.setorAtual || '—'}</td>
+          <td class="num">${diasTxt}</td>
+          <td style="font-size:0.75rem;">${p.criadoEm ? formatarData(p.criadoEm).split(' ')[0] : '—'}</td>
+          <td>
+            ${acoesExtra}
+            <button class="btn pequeno secundario" onclick="abrirEdicao('${p.id}')">Editar</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+  tbody.innerHTML = html;
 }
 
 // ============================================================================
@@ -1587,12 +1820,16 @@ function distribuirNovo() {
     modificador: calc.modificador,
     sctFinal: calc.sctFinal,
     servidorElaboracao: dist.servidor,
+    comissaoElaboracao: [],
     status: 'elaboracao',
-    aguardandoExterno: null,
+    setorAtual: 'COAG',
+    dataEntradaSetor: agora,
+    historicoSetores: [{ setor: 'COAG', entrouEm: agora, saiuEm: null, diasNoSetor: null }],
     observacoes: document.getElementById('campo-obs').value.trim(),
     criadoEm: agora,
     ultimaAtualizacao: agora,
     entrouFilaEm: null,
+    versao: 0,
     historico: [{ ts: agora, evento: 'Criado e distribuído para ' + dist.servidor }]
   };
   estado.processos.push(proc);
@@ -1620,6 +1857,10 @@ function avancarStatus(id, novoStatus) {
   p.status = novoStatus;
   p.entrouFilaEm = Date.now();
   p.ultimaAtualizacao = Date.now();
+  // Status COAG-interno: garante setor = COAG
+  if (['elaboracao', 'revisao_matheus', 'aprovacao_kerolaine'].includes(novoStatus)) {
+    registrarMudancaSetor(p, 'COAG');
+  }
   p.historico = p.historico || [];
   p.historico.push({ ts: Date.now(), evento: 'Status → ' + (STATUS_ROTULOS[novoStatus]?.texto || novoStatus) });
   salvar();
@@ -1640,7 +1881,12 @@ function concluirContratacao(id) {
   if (detalhe === null) return;
   p.status = 'concluido';
   p.ultimaAtualizacao = Date.now();
-  p.aguardandoExterno = null;
+  // Fecha período atual no historicoSetores
+  const aberto = (p.historicoSetores || []).find(h => h.saiuEm === null);
+  if (aberto) {
+    aberto.saiuEm = Date.now();
+    aberto.diasNoSetor = Math.floor((Date.now() - aberto.entrouEm) / (1000 * 60 * 60 * 24));
+  }
   p.historico = p.historico || [];
   p.historico.push({
     ts: Date.now(),
@@ -1673,7 +1919,7 @@ function retornarDiligencia(id) {
   p.status = 'elaboracao';
   p.ultimaAtualizacao = Date.now();
   p.entrouFilaEm = null;
-  p.aguardandoExterno = null;
+  registrarMudancaSetor(p, 'COAG');
   p.historico = p.historico || [];
   p.historico.push({
     ts: Date.now(),
@@ -1702,7 +1948,12 @@ function arquivarProcesso(id) {
   if (motivo === null) return; // cancelado
   p.status = 'arquivado';
   p.ultimaAtualizacao = Date.now();
-  p.aguardandoExterno = null;
+  // Fecha período atual do setor
+  const aberto = (p.historicoSetores || []).find(h => h.saiuEm === null);
+  if (aberto) {
+    aberto.saiuEm = Date.now();
+    aberto.diasNoSetor = Math.floor((Date.now() - aberto.entrouEm) / (1000 * 60 * 60 * 24));
+  }
   p.historico = p.historico || [];
   p.historico.push({
     ts: Date.now(),
@@ -1748,25 +1999,44 @@ function desarquivarProcesso(id) {
     toast('Opção inválida — operação cancelada', true);
     return;
   }
-  let aguardando = null;
+  let setorEscolhido = null;
   if (novoStatus === 'bloqueado_externo') {
-    const setor = prompt('Aguardando qual setor externo? (CEAP, CTI, CCSC, AJ, DPGE ou outro)', '');
-    if (setor === null) return;
-    aguardando = setor.trim() || null;
+    const lista = SETORES_DPE.filter(s => s !== 'COAG').map((s, i) => `${i+1} — ${s}`).join('\n');
+    const r = prompt('Bloqueado em qual setor?\n\n' + lista + '\n\nDigite o número:', '');
+    if (r === null) return;
+    const setores = SETORES_DPE.filter(s => s !== 'COAG');
+    const idx = parseInt(r.trim(), 10) - 1;
+    if (idx < 0 || idx >= setores.length) {
+      toast('Setor inválido — operação cancelada', true);
+      return;
+    }
+    setorEscolhido = setores[idx];
+  } else if (novoStatus === 'aprovado_tramite') {
+    const lista = SETORES_DPE.map((s, i) => `${i+1} — ${s}`).join('\n');
+    const r = prompt('Em qual setor está em trâmite?\n\n' + lista + '\n\nDigite o número:', '1');
+    if (r === null) return;
+    const idx = parseInt(r.trim(), 10) - 1;
+    if (idx < 0 || idx >= SETORES_DPE.length) {
+      toast('Setor inválido — operação cancelada', true);
+      return;
+    }
+    setorEscolhido = SETORES_DPE[idx];
+  } else {
+    setorEscolhido = 'COAG';
   }
   if ((novoStatus === 'revisao_matheus' || novoStatus === 'aprovacao_kerolaine' || novoStatus === 'aprovado_tramite') && !p.servidorElaboracao) {
     toast('Processo precisa ter servidor de elaboração antes desse status. Edite primeiro.', true);
     return;
   }
   p.status = novoStatus;
-  p.aguardandoExterno = aguardando;
+  registrarMudancaSetor(p, setorEscolhido);
   p.entrouFilaEm = (novoStatus === 'revisao_matheus' || novoStatus === 'aprovacao_kerolaine') ? Date.now() : null;
   p.ultimaAtualizacao = Date.now();
   p.historico = p.historico || [];
   p.historico.push({
     ts: Date.now(),
     evento: 'Desarquivado → ' + (STATUS_ROTULOS[novoStatus]?.texto || novoStatus)
-      + (aguardando ? ' (aguardando ' + aguardando + ')' : '')
+      + ' (setor: ' + setorEscolhido + ')'
   });
   salvar();
   renderTudo();
@@ -1782,6 +2052,19 @@ function abrirEdicao(id) {
   if (!p) return;
   editandoId = id;
   document.getElementById('modal-titulo').textContent = `Editar ${p.sei}`;
+  // Lista de candidatos a coordenador (servidores primários + Matheus)
+  const candidatosCoord = [...SERVIDORES_PRIMARIOS, MATHEUS];
+  // Histórico de setores formatado
+  const histSetores = (p.historicoSetores || []).map(h => {
+    const dias = h.diasNoSetor !== null ? h.diasNoSetor : Math.floor((Date.now() - h.entrouEm) / (1000 * 60 * 60 * 24));
+    const entrou = new Date(h.entrouEm).toLocaleDateString('pt-BR');
+    const saiu = h.saiuEm ? new Date(h.saiuEm).toLocaleDateString('pt-BR') : '<em>atual</em>';
+    return `<tr><td>${h.setor}</td><td>${entrou}</td><td>${saiu}</td><td class="num">${dias}</td></tr>`;
+  }).join('');
+  // Membros da comissão (excluindo o coordenador)
+  const comissaoTags = (p.comissaoElaboracao || []).map((m, i) =>
+    `<span class="comissao-tag" data-idx="${i}">${m} <button type="button" class="remover-comissao" data-idx="${i}" title="Remover">×</button></span>`
+  ).join('');
   document.getElementById('modal-conteudo').innerHTML = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
       <div class="full" style="grid-column:1/-1;">
@@ -1789,9 +2072,10 @@ function abrirEdicao(id) {
         <input type="text" id="edit-objeto" value="${(p.objeto || '').replace(/"/g, '&quot;')}">
       </div>
       <div>
-        <label>Servidor de elaboração</label>
+        <label>Servidor coordenador (responsável principal)</label>
         <select id="edit-servidor">
-          ${[...SERVIDORES_PRIMARIOS, MATHEUS].map(f =>
+          <option value="">— Sem coordenador definido —</option>
+          ${candidatosCoord.map(f =>
             `<option value="${f}" ${p.servidorElaboracao === f ? 'selected' : ''}>${f}</option>`).join('')}
         </select>
       </div>
@@ -1803,28 +2087,77 @@ function abrirEdicao(id) {
         </select>
       </div>
       <div>
-        <label>Aguardando externo</label>
-        <select id="edit-aguarda">
-          <option value="">— Nenhum —</option>
-          <option value="CTI" ${p.aguardandoExterno === 'CTI' ? 'selected' : ''}>CTI</option>
-          <option value="CEAP" ${p.aguardandoExterno === 'CEAP' ? 'selected' : ''}>CEAP</option>
-          <option value="CCSC" ${p.aguardandoExterno === 'CCSC' ? 'selected' : ''}>CCSC</option>
-          <option value="Outro" ${p.aguardandoExterno === 'Outro' ? 'selected' : ''}>Outro</option>
+        <label>Setor atual <small>onde o processo está agora</small></label>
+        <select id="edit-setor">
+          ${SETORES_DPE.map(s =>
+            `<option value="${s}" ${p.setorAtual === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
       <div>
-        <label>SCT final (manual, sobrescreve cálculo)</label>
+        <label>SCT final <small>manual, sobrescreve cálculo</small></label>
         <input type="number" id="edit-sct" step="0.1" min="0" value="${p.sctFinal || 0}">
+      </div>
+      <div class="full" style="grid-column:1/-1;">
+        <label>Comissão de planejamento <small>servidores adicionais — coordenador acima</small></label>
+        <div class="comissao-container" id="comissao-container">${comissaoTags || '<em style="color:var(--tinta-fraca);font-size:0.8rem;">Nenhum membro adicional</em>'}</div>
+        <div style="display:flex; gap:0.4rem; margin-top:0.4rem; align-items:center;">
+          <input type="text" id="edit-comissao-novo" placeholder="Nome do membro (ex.: Adriano · Andry · Josemário)" style="flex:1;">
+          <button type="button" class="btn pequeno secundario" id="btn-adicionar-comissao">+ Adicionar</button>
+        </div>
+        ${(() => {
+          const env = servidoresCOAGEnvolvidos(p);
+          const ext = (p.comissaoElaboracao || []).filter(m => !ehServidorCOAG(m));
+          const sctTotal = p.sctFinal || 0;
+          if (env.length === 0 && ext.length === 0) return '';
+          const fatia = env.length > 0 ? (sctTotal / env.length).toFixed(1) : '0';
+          return `
+            <div style="margin-top:0.5rem; padding:0.5rem 0.7rem; background:var(--verde-tenue); border-left:3px solid var(--verde-claro); font-size:0.8rem;">
+              <strong>Divisão da carga:</strong>
+              ${env.length > 0
+                ? `SCT total ${sctTotal.toFixed(1)} ÷ ${env.length} servidor(es) COAG = <strong>${fatia} cada</strong> · ${env.join(', ')}`
+                : `<span style="color:var(--vermelho-alerta);">Nenhum servidor COAG envolvido — carga = 0</span>`}
+              ${ext.length > 0 ? `<br><span style="color:var(--tinta-suave);">Externos (sem carga): ${ext.join(', ')}</span>` : ''}
+            </div>
+          `;
+        })()}
       </div>
       <div class="full" style="grid-column:1/-1;">
         <label>Observações</label>
         <textarea id="edit-obs">${p.observacoes || ''}</textarea>
+      </div>
+      <div class="full" style="grid-column:1/-1;">
+        <label>Histórico de setores</label>
+        <table style="font-size:0.78rem; width:100%;">
+          <thead><tr><th>Setor</th><th>Entrou</th><th>Saiu</th><th class="num">Dias</th></tr></thead>
+          <tbody>${histSetores || '<tr><td colspan="4" style="color:var(--tinta-fraca);font-style:italic;">Sem histórico registrado</td></tr>'}</tbody>
+        </table>
       </div>
     </div>
     <div style="margin-top:0.75rem;">
       <button class="btn perigo pequeno" onclick="excluirProcesso('${id}')">Excluir processo</button>
     </div>
   `;
+  // Listeners para botões da comissão (depois que o HTML está no DOM)
+  document.getElementById('btn-adicionar-comissao').addEventListener('click', () => {
+    const input = document.getElementById('edit-comissao-novo');
+    const nome = input.value.trim();
+    if (!nome) return;
+    p.comissaoElaboracao = p.comissaoElaboracao || [];
+    if (p.comissaoElaboracao.includes(nome)) {
+      toast('Membro já consta na comissão', true);
+      return;
+    }
+    p.comissaoElaboracao.push(nome);
+    input.value = '';
+    abrirEdicao(id); // re-renderiza o modal
+  });
+  document.querySelectorAll('.remover-comissao').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      p.comissaoElaboracao.splice(idx, 1);
+      abrirEdicao(id);
+    });
+  });
   document.getElementById('modal-edicao').classList.add('aberto');
 }
 function fecharEdicao() {
@@ -1836,13 +2169,20 @@ function salvarEdicao() {
   const p = estado.processos.find(x => x.id === editandoId);
   if (!p) return;
   p.objeto = document.getElementById('edit-objeto').value.trim();
-  p.servidorElaboracao = document.getElementById('edit-servidor').value;
+  p.servidorElaboracao = document.getElementById('edit-servidor').value || null;
   const novoStatus = document.getElementById('edit-status').value;
   if (novoStatus !== p.status) {
     p.entrouFilaEm = Date.now();
   }
   p.status = novoStatus;
-  p.aguardandoExterno = document.getElementById('edit-aguarda').value || null;
+  // Setor atual: se status COAG-interno, força COAG; senão, respeita escolha
+  let setorFinal = document.getElementById('edit-setor').value;
+  if (['elaboracao', 'revisao_matheus', 'aprovacao_kerolaine'].includes(novoStatus)) {
+    setorFinal = 'COAG';
+  }
+  if (setorFinal !== p.setorAtual) {
+    registrarMudancaSetor(p, setorFinal);
+  }
   p.sctFinal = parseFloat(document.getElementById('edit-sct').value) || 0;
   p.observacoes = document.getElementById('edit-obs').value.trim();
   p.ultimaAtualizacao = Date.now();
@@ -1897,7 +2237,7 @@ function exportarJSON() {
   toast('JSON exportado');
 }
 function exportarCSV() {
-  const cab = ['SEI','Objeto','Tipo','Score','Nivel','SCT_base','Modificador','SCT_final','Servidor','Status','Aguardando','Criado','Atualizado'];
+  const cab = ['SEI','Objeto','Tipo','Score','Nivel','SCT_base','Modificador','SCT_final','Coordenador','Comissao','Status','Setor','Dias_no_setor','Criado','Atualizado'];
   const linhas = estado.processos.map(p => [
     p.sei || '',
     (p.objeto || '').replace(/"/g, '""'),
@@ -1908,8 +2248,10 @@ function exportarCSV() {
     p.modificador ?? '',
     p.sctFinal ?? '',
     p.servidorElaboracao || '',
+    (p.comissaoElaboracao || []).join('; '),
     STATUS_ROTULOS[p.status]?.texto || p.status || '',
-    p.aguardandoExterno || '',
+    p.setorAtual || '',
+    diasNoSetorAtual(p),
     p.criadoEm ? new Date(p.criadoEm).toISOString() : '',
     p.ultimaAtualizacao ? new Date(p.ultimaAtualizacao).toISOString() : ''
   ].map(c => `"${c}"`).join(','));
@@ -1982,12 +2324,16 @@ function inserirExemplos() {
       modificador: calc.modificador,
       sctFinal: calc.sctFinal,
       servidorElaboracao: dist.servidor,
+      comissaoElaboracao: [],
       status: 'elaboracao',
-      aguardandoExterno: null,
+      setorAtual: 'COAG',
+      dataEntradaSetor: ts,
+      historicoSetores: [{ setor: 'COAG', entrouEm: ts, saiuEm: null, diasNoSetor: null }],
       observacoes: 'Processo de exemplo',
       criadoEm: ts,
       ultimaAtualizacao: ts,
       entrouFilaEm: null,
+      versao: 0,
       historico: [{ ts, evento: 'Exemplo carregado · distribuído para ' + dist.servidor }]
     };
     estado.processos.push(proc);
