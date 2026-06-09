@@ -742,7 +742,7 @@
     <h2>Visão Geral da Carga</h2>
     <div class="cards-grid" id="cards-resumo"></div>
 
-    <h3>Distribuição de SCT por Servidor (carga ativa, exclui bloqueados externos)</h3>
+    <h3>Distribuição de SCT por Servidor (carga ativa, exclui em diligência externa)</h3>
     <div class="barras-carga" id="barras-carga"></div>
 
     <h3>Estado de Matheus</h3>
@@ -1588,7 +1588,7 @@ function renderDashboard() {
       <div class="detalhe">${ativos} ativos · ${emTramite} aprov. em trâmite · ${concluidos} concluídos · ${arquivados} arquivados</div>
     </div>
     <div class="card ${bloqueados > 0 ? 'atencao' : ''}">
-      <div class="rotulo">Bloqueados externos</div>
+      <div class="rotulo">Em diligência externa</div>
       <div class="valor">${bloqueados}</div>
       <div class="detalhe">Não contam para carga</div>
     </div>
@@ -2055,7 +2055,7 @@ function desarquivarProcesso(id) {
   let setorEscolhido = null;
   if (novoStatus === 'bloqueado_externo') {
     const lista = SETORES_DPE.filter(s => s !== 'COAG').map((s, i) => `${i+1} — ${s}`).join('\n');
-    const r = prompt('Bloqueado em qual setor?\n\n' + lista + '\n\nDigite o número:', '');
+    const r = prompt('Em diligência externa em qual setor?\n\n' + lista + '\n\nDigite o número:', '');
     if (r === null) return;
     const setores = SETORES_DPE.filter(s => s !== 'COAG');
     const idx = parseInt(r.trim(), 10) - 1;
