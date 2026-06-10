@@ -291,6 +291,13 @@
     font-size: 1.2rem;
     line-height: 1;
   }
+  .diligencia-info {
+    font-size: 0.72rem;
+    color: var(--tinta-suave);
+    font-style: italic;
+    margin-top: 0.15rem;
+    padding-left: 0.2rem;
+  }
   #tabela-hist-setores input[type="date"],
   #tabela-hist-setores select {
     padding: 0.25rem 0.35rem;
@@ -308,6 +315,7 @@
     color: var(--vermelho-alerta);
     font-weight: bold;
   }
+  #bloco-origem-externa.visivel { display: grid !important; }
   .dias-medio { color: var(--amarelo-alerta); font-weight: bold; }
   .dias-atencao { color: var(--vermelho-alerta); font-weight: bold; }
   /* Tags de comissão no modal */
@@ -885,6 +893,35 @@
         </div>
       </div>
 
+      <div class="full" style="border-top:1px dashed var(--borda); padding-top:0.75rem; margin-top:0.25rem;">
+        <label style="display:flex; align-items:center; gap:0.5rem;">
+          <input type="checkbox" id="campo-origem-externa" style="width:auto;">
+          <span>Encaminhar inicialmente a setor externo <small>processo será criado na COAG mas remetido a outro setor para diligência preliminar (ETP, pesquisa de preços, parecer técnico etc.) antes da elaboração do TR</small></span>
+        </label>
+      </div>
+
+      <div class="full" id="bloco-origem-externa" style="display:none; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:0.75rem; padding:0.75rem; background:var(--verde-tenue); border-left:3px solid var(--verde-claro);">
+        <div>
+          <label>Setor de destino <small>para onde o processo será remetido</small></label>
+          <select id="campo-origem-setor"></select>
+        </div>
+        <div>
+          <label>Diligência solicitada</label>
+          <select id="campo-origem-diligencia"></select>
+        </div>
+        <div>
+          <label>Diligência (se "Outro")</label>
+          <input type="text" id="campo-origem-diligencia-livre" placeholder="Descrever apenas se selecionar Outro">
+        </div>
+        <div>
+          <label>Data de envio ao setor <small>deixe em branco para hoje</small></label>
+          <input type="date" id="campo-origem-data">
+        </div>
+        <div class="full" style="grid-column:1/-1; font-size:0.78rem; color:var(--tinta-suave); font-style:italic;">
+          O processo entrará com status "Em diligência externa" e <strong>sem responsável atribuído</strong>. A distribuição automática será proposta quando o processo retornar à COAG para elaboração.
+        </div>
+      </div>
+
       <div class="full">
         <label>Observações <small>contexto adicional, links, despachos relacionados</small></label>
         <textarea id="campo-obs" placeholder="Opcional"></textarea>
@@ -1162,6 +1199,20 @@ const STATUS_ROTULOS = {
 // Setores da DPE/RN que podem ser destino/origem dos processos
 const SETORES_DPE = ['COAG', 'CFCC', 'SPL', 'CEAP', 'CTI', 'DPGE', 'SDPGE', 'RH', 'COPC', 'AJ', 'SRST', 'SDSP', 'Outro'];
 
+// Tipos de diligência comumente solicitados a setores externos
+const DILIGENCIAS_COMUNS = [
+  'Elaboração de ETP',
+  'Pesquisa de preços',
+  'Parecer técnico',
+  'Parecer jurídico',
+  'Análise / manifestação',
+  'Análise de DFD',
+  'Laudo técnico',
+  'Despacho decisório',
+  'Atualização orçamentária',
+  'Outro'
+];
+
 // Ordem visual dos grupos na tabela de processos
 const ORDEM_STATUS_GRUPOS = [
   'elaboracao',
@@ -1174,9 +1225,9 @@ const ORDEM_STATUS_GRUPOS = [
 ];
 
 // Helpers de setor e tempo no setor
-function registrarMudancaSetor(p, novoSetor) {
+function registrarMudancaSetor(p, novoSetor, diligencia) {
   const agora = Date.now();
-  if (p.setorAtual === novoSetor) return; // sem mudança real
+  if (p.setorAtual === novoSetor && p.diligenciaAtual === diligencia) return; // sem mudança real
   // Fecha o período anterior, se existir
   p.historicoSetores = p.historicoSetores || [];
   const aberto = p.historicoSetores.find(h => h.saiuEm === null);
@@ -1184,9 +1235,24 @@ function registrarMudancaSetor(p, novoSetor) {
     aberto.saiuEm = agora;
     aberto.diasNoSetor = Math.floor((agora - aberto.entrouEm) / (1000 * 60 * 60 * 24));
   }
-  p.historicoSetores.push({ setor: novoSetor, entrouEm: agora, saiuEm: null, diasNoSetor: null });
+  p.historicoSetores.push({
+    setor: novoSetor,
+    entrouEm: agora,
+    saiuEm: null,
+    diasNoSetor: null,
+    diligencia: diligencia || null
+  });
   p.setorAtual = novoSetor;
   p.dataEntradaSetor = agora;
+  p.diligenciaAtual = diligencia || null;
+}
+
+// Retorna a diligência atual do processo (do período em curso) ou null
+function diligenciaAtualDe(p) {
+  if (!p.historicoSetores || p.historicoSetores.length === 0) return null;
+  const emCurso = p.historicoSetores.find(h => h.saiuEm === null);
+  if (emCurso && emCurso.diligencia) return emCurso.diligencia;
+  return p.diligenciaAtual || null;
 }
 
 function diasNoSetorAtual(p) {
@@ -1404,9 +1470,14 @@ function carregar() {
         setor: p.setorAtual,
         entrouEm: p.dataEntradaSetor,
         saiuEm: null,
-        diasNoSetor: null
+        diasNoSetor: null,
+        diligencia: null
       }];
+    } else {
+      // Garante campo diligencia em itens já existentes
+      p.historicoSetores.forEach(h => { if (!('diligencia' in h)) h.diligencia = null; });
     }
+    if (!('diligenciaAtual' in p)) p.diligenciaAtual = null;
     // Garantir comissaoElaboracao
     if (!Array.isArray(p.comissaoElaboracao)) {
       p.comissaoElaboracao = [];
@@ -1730,6 +1801,10 @@ function renderProcessos() {
       } else if (!ehTerminal && !ehAprovadoTramite) {
         acoesExtra += `<button class="btn pequeno secundario" onclick="arquivarProcesso('${p.id}')">Arquivar</button>`;
       }
+      // Botão "Distribuir" quando processo está sem responsável e não-terminal
+      if (!p.servidorElaboracao && !ehTerminal) {
+        acoesExtra = `<button class="btn pequeno" onclick="distribuirProcessoExistente('${p.id}')" title="Atribuir responsável da COAG por carga">Distribuir</button>` + acoesExtra;
+      }
       // Responsável(eis) — quando há comissão, lista todos
       const coag = servidoresCOAGEnvolvidos(p);
       const comissao = p.comissaoElaboracao || [];
@@ -1774,7 +1849,10 @@ function renderProcessos() {
           <td>${p.nivelCodigo ? `<span class="badge ${nivelClasse}">${p.nivelCodigo}</span>` : '—'}</td>
           <td class="num">${sctTxt}</td>
           <td>${responsavelTxt}</td>
-          <td>${p.setorAtual || '—'}</td>
+          <td>
+            ${p.setorAtual || '—'}
+            ${diligenciaAtualDe(p) ? `<div class="diligencia-info">↳ ${diligenciaAtualDe(p)}</div>` : ''}
+          </td>
           <td class="num">${diasTxt}</td>
           <td>
             ${acoesExtra}
@@ -1859,8 +1937,45 @@ function distribuirNovo() {
     E: parseInt(document.getElementById('campo-E').value, 10)
   };
   const calc = calcularSCT(tipo, dim);
-  const dist = escolherServidor();
   const agora = Date.now();
+
+  // Verifica remessa inicial a setor externo
+  const ehRemessaExterna = document.getElementById('campo-origem-externa').checked;
+  let statusInicial = 'elaboracao';
+  let setorInicial = 'COAG';
+  let dataEntradaInicial = agora;
+  let diligenciaInicial = null;
+  let servidorAtribuido = null;
+  let distInfo = null;
+
+  if (ehRemessaExterna) {
+    statusInicial = 'bloqueado_externo';
+    setorInicial = document.getElementById('campo-origem-setor').value;
+    const dilSel = document.getElementById('campo-origem-diligencia').value;
+    if (dilSel === 'Outro') {
+      const livre = document.getElementById('campo-origem-diligencia-livre').value.trim();
+      if (!livre) {
+        toast('Descreva a diligência no campo livre', true);
+        return;
+      }
+      diligenciaInicial = livre;
+    } else {
+      diligenciaInicial = dilSel;
+    }
+    const dataStr = document.getElementById('campo-origem-data').value;
+    if (dataStr) {
+      dataEntradaInicial = dateInputParaTs(dataStr);
+      if (dataEntradaInicial > agora) {
+        toast('Data de envio ao setor não pode ser futura', true);
+        return;
+      }
+    }
+    servidorAtribuido = null;
+  } else {
+    distInfo = escolherServidor();
+    servidorAtribuido = distInfo.servidor;
+  }
+
   const proc = {
     id: uuid(),
     sei,
@@ -1872,36 +1987,83 @@ function distribuirNovo() {
     sctBase: calc.sctBase,
     modificador: calc.modificador,
     sctFinal: calc.sctFinal,
-    servidorElaboracao: dist.servidor,
+    servidorElaboracao: servidorAtribuido,
     comissaoElaboracao: [],
-    status: 'elaboracao',
-    setorAtual: 'COAG',
-    dataEntradaSetor: agora,
-    historicoSetores: [{ setor: 'COAG', entrouEm: agora, saiuEm: null, diasNoSetor: null }],
+    status: statusInicial,
+    setorAtual: setorInicial,
+    dataEntradaSetor: dataEntradaInicial,
+    diligenciaAtual: diligenciaInicial,
+    historicoSetores: [{
+      setor: setorInicial,
+      entrouEm: dataEntradaInicial,
+      saiuEm: null,
+      diasNoSetor: null,
+      diligencia: diligenciaInicial
+    }],
     observacoes: document.getElementById('campo-obs').value.trim(),
     criadoEm: agora,
     ultimaAtualizacao: agora,
     entrouFilaEm: null,
     versao: 0,
-    historico: [{ ts: agora, evento: 'Criado e distribuído para ' + dist.servidor }]
+    historico: [{
+      ts: agora,
+      evento: ehRemessaExterna
+        ? `Criado e remetido a ${setorInicial} para ${diligenciaInicial || 'diligência preliminar'}. Responsável a definir no retorno.`
+        : 'Criado e distribuído para ' + servidorAtribuido
+    }]
   };
   estado.processos.push(proc);
   salvar();
 
   const painel = document.getElementById('painel-distribuicao');
   painel.style.display = 'block';
-  const aviso = dist.modo === 'suplencia'
-    ? '<br><strong style="color:var(--vermelho-alerta);">⚠ Todos os primários estão no limiar — Matheus acionado como suplente.</strong>'
-    : '';
-  painel.innerHTML = `
-    <div class="resultado-distribuicao">
-      Processo <strong>${sei}</strong> distribuído para <strong>${dist.servidor}</strong>.<br>
-      Score: ${calc.score ?? '—'} · Nível: ${calc.nivel.codigo} · SCT base: ${calc.sctBase} · Modificador: ×${calc.modificador} · <strong>SCT final: ${calc.sctFinal}</strong>
-      ${aviso}
-    </div>
-  `;
+  if (ehRemessaExterna) {
+    painel.innerHTML = `
+      <div class="resultado-distribuicao">
+        Processo <strong>${sei}</strong> criado e remetido a <strong>${setorInicial}</strong> para ${diligenciaInicial || 'diligência preliminar'}.<br>
+        Score: ${calc.score ?? '—'} · Nível: ${calc.nivel.codigo} · SCT: ${calc.sctFinal} <span style="color:var(--tinta-suave);">(sem responsável atribuído — distribuição ocorrerá no retorno)</span>
+      </div>
+    `;
+    toast(`Processo criado · remetido a ${setorInicial}`);
+  } else {
+    const aviso = (distInfo && distInfo.modo === 'suplencia')
+      ? '<br><strong style="color:var(--vermelho-alerta);">⚠ Todos os primários estão no limiar — Matheus acionado como suplente.</strong>'
+      : '';
+    painel.innerHTML = `
+      <div class="resultado-distribuicao">
+        Processo <strong>${sei}</strong> distribuído para <strong>${servidorAtribuido}</strong>.<br>
+        Score: ${calc.score ?? '—'} · Nível: ${calc.nivel.codigo} · SCT base: ${calc.sctBase} · Modificador: ×${calc.modificador} · <strong>SCT final: ${calc.sctFinal}</strong>
+        ${aviso}
+      </div>
+    `;
+    toast(`Distribuído para ${servidorAtribuido} (${calc.sctFinal} SCT)`);
+  }
   renderTudo();
-  toast(`Distribuído para ${dist.servidor} (${calc.sctFinal} SCT)`);
+}
+
+function distribuirProcessoExistente(id) {
+  const p = estado.processos.find(x => x.id === id);
+  if (!p) return;
+  if (p.servidorElaboracao) {
+    if (!confirm(`Este processo já tem responsável (${p.servidorElaboracao}). Redistribuir? A carga será recalculada.`)) return;
+  }
+  // Aviso se não está em fase de elaboração
+  if (p.status !== 'elaboracao') {
+    const statusInfo = STATUS_ROTULOS[p.status]?.texto || p.status;
+    if (!confirm(`Processo está em status "${statusInfo}", não em elaboração na COAG. Distribuir mesmo assim?`)) return;
+  }
+  const dist = escolherServidor();
+  const anterior = p.servidorElaboracao;
+  p.servidorElaboracao = dist.servidor;
+  p.ultimaAtualizacao = Date.now();
+  p.historico = p.historico || [];
+  const evento = anterior
+    ? `Redistribuído: ${anterior} → ${dist.servidor}`
+    : `Distribuído para ${dist.servidor} no retorno da diligência`;
+  p.historico.push({ ts: Date.now(), evento });
+  salvar();
+  renderTudo();
+  toast(`${dist.servidor} agora é responsável (${(p.sctFinal || 0).toFixed(1)} SCT)`);
 }
 
 function avancarStatus(id, novoStatus) {
@@ -1919,6 +2081,14 @@ function avancarStatus(id, novoStatus) {
   salvar();
   renderTudo();
   toast('Status atualizado');
+  // Se voltou para elaboração e ainda não tem responsável, propor distribuição
+  if (novoStatus === 'elaboracao' && !p.servidorElaboracao) {
+    setTimeout(() => {
+      if (confirm(`Processo voltou para elaboração na COAG e ainda não tem responsável. Distribuir automaticamente agora?`)) {
+        distribuirProcessoExistente(id);
+      }
+    }, 100);
+  }
 }
 
 function concluirContratacao(id) {
@@ -2053,6 +2223,7 @@ function desarquivarProcesso(id) {
     return;
   }
   let setorEscolhido = null;
+  let diligenciaEscolhida = null;
   if (novoStatus === 'bloqueado_externo') {
     const lista = SETORES_DPE.filter(s => s !== 'COAG').map((s, i) => `${i+1} — ${s}`).join('\n');
     const r = prompt('Em diligência externa em qual setor?\n\n' + lista + '\n\nDigite o número:', '');
@@ -2064,6 +2235,22 @@ function desarquivarProcesso(id) {
       return;
     }
     setorEscolhido = setores[idx];
+    // Pergunta diligência
+    const listaDil = DILIGENCIAS_COMUNS.map((d, i) => `${i+1} — ${d}`).join('\n');
+    const rd = prompt('Qual diligência foi solicitada?\n\n' + listaDil + '\n\nDigite o número (deixe em branco para nenhuma):', '');
+    if (rd === null) return;
+    if (rd.trim() !== '') {
+      const idd = parseInt(rd.trim(), 10) - 1;
+      if (idd >= 0 && idd < DILIGENCIAS_COMUNS.length) {
+        let dil = DILIGENCIAS_COMUNS[idd];
+        if (dil === 'Outro') {
+          const livre = prompt('Descreva a diligência:', '');
+          if (livre === null) return;
+          dil = livre.trim() || null;
+        }
+        diligenciaEscolhida = dil;
+      }
+    }
   } else if (novoStatus === 'aprovado_tramite') {
     const lista = SETORES_DPE.map((s, i) => `${i+1} — ${s}`).join('\n');
     const r = prompt('Em qual setor está em trâmite?\n\n' + lista + '\n\nDigite o número:', '1');
@@ -2082,7 +2269,7 @@ function desarquivarProcesso(id) {
     return;
   }
   p.status = novoStatus;
-  registrarMudancaSetor(p, setorEscolhido);
+  registrarMudancaSetor(p, setorEscolhido, diligenciaEscolhida);
   p.entrouFilaEm = (novoStatus === 'revisao_matheus' || novoStatus === 'aprovacao_kerolaine') ? Date.now() : null;
   p.ultimaAtualizacao = Date.now();
   p.historico = p.historico || [];
@@ -2113,12 +2300,22 @@ function abrirEdicao(id) {
     const diasCalc = h.saiuEm !== null
       ? Math.floor((h.saiuEm - h.entrouEm) / (1000 * 60 * 60 * 24))
       : Math.floor((Date.now() - h.entrouEm) / (1000 * 60 * 60 * 24));
+    // Select de diligência (apenas faz sentido para setores != COAG, mas deixamos editável sempre)
+    const diligenciaAtualVal = h.diligencia || '';
+    const opcoesDiligencia = ['<option value="">—</option>']
+      .concat(DILIGENCIAS_COMUNS.map(d => `<option value="${d}" ${diligenciaAtualVal === d ? 'selected' : ''}>${d}</option>`))
+      .concat(diligenciaAtualVal && !DILIGENCIAS_COMUNS.includes(diligenciaAtualVal)
+        ? [`<option value="${diligenciaAtualVal.replace(/"/g, '&quot;')}" selected>${diligenciaAtualVal} (custom)</option>`]
+        : []).join('');
     return `
       <tr data-idx="${i}">
         <td>
           <select class="hist-setor" data-idx="${i}">
             ${SETORES_DPE.map(s => `<option value="${s}" ${h.setor === s ? 'selected' : ''}>${s}</option>`).join('')}
           </select>
+        </td>
+        <td>
+          <select class="hist-diligencia" data-idx="${i}">${opcoesDiligencia}</select>
         </td>
         <td><input type="date" class="hist-entrou" data-idx="${i}" value="${tsParaDateInput(h.entrouEm)}"></td>
         <td><input type="date" class="hist-saiu" data-idx="${i}" value="${h.saiuEm !== null ? tsParaDateInput(h.saiuEm) : ''}" placeholder="(em curso)"></td>
@@ -2195,8 +2392,8 @@ function abrirEdicao(id) {
       <div class="full" style="grid-column:1/-1;">
         <label>Histórico de setores <small>edite datas para reconstruir o trajeto do processo; deixe "Saiu" em branco para período em curso</small></label>
         <table id="tabela-hist-setores" style="font-size:0.78rem; width:100%;">
-          <thead><tr><th>Setor</th><th>Entrou</th><th>Saiu</th><th class="num">Dias</th><th></th><th></th></tr></thead>
-          <tbody id="hist-setores-tbody">${histRows || '<tr><td colspan="6" style="color:var(--tinta-fraca);font-style:italic;">Sem histórico registrado</td></tr>'}</tbody>
+          <thead><tr><th>Setor</th><th>Diligência</th><th>Entrou</th><th>Saiu</th><th class="num">Dias</th><th></th><th></th></tr></thead>
+          <tbody id="hist-setores-tbody">${histRows || '<tr><td colspan="7" style="color:var(--tinta-fraca);font-style:italic;">Sem histórico registrado</td></tr>'}</tbody>
         </table>
         <button type="button" class="btn pequeno secundario" id="btn-adicionar-periodo" style="margin-top:0.4rem;">+ Adicionar período</button>
         <p class="legenda-config" style="margin-top:0.4rem;">
@@ -2280,6 +2477,7 @@ function coletarHistoricoEditado() {
   let qtdEmCurso = 0;
   for (const row of rows) {
     const setor = row.querySelector('.hist-setor')?.value;
+    const diligencia = row.querySelector('.hist-diligencia')?.value || null;
     const entrouStr = row.querySelector('.hist-entrou')?.value;
     const saiuStr = row.querySelector('.hist-saiu')?.value;
     if (!setor) return { ok: false, erro: 'Setor não selecionado em um dos períodos' };
@@ -2294,7 +2492,8 @@ function coletarHistoricoEditado() {
       setor,
       entrouEm,
       saiuEm,
-      diasNoSetor: saiuEm !== null ? Math.floor((saiuEm - entrouEm) / (1000 * 60 * 60 * 24)) : null
+      diasNoSetor: saiuEm !== null ? Math.floor((saiuEm - entrouEm) / (1000 * 60 * 60 * 24)) : null,
+      diligencia
     });
   }
   if (qtdEmCurso > 1) {
@@ -2337,7 +2536,7 @@ function salvarEdicao() {
   p.sctFinal = parseFloat(document.getElementById('edit-sct').value) || 0;
   p.observacoes = document.getElementById('edit-obs').value.trim();
   p.ultimaAtualizacao = Date.now();
-  // Aplica histórico editado e deriva setorAtual + dataEntradaSetor
+  // Aplica histórico editado e deriva setorAtual + dataEntradaSetor + diligenciaAtual
   p.historicoSetores = resultado.historico;
   if (resultado.historico.length > 0) {
     // Período em curso vence; senão, último encerrado
@@ -2345,6 +2544,7 @@ function salvarEdicao() {
     const referencia = emCurso || resultado.historico[resultado.historico.length - 1];
     p.setorAtual = referencia.setor;
     p.dataEntradaSetor = referencia.entrouEm;
+    p.diligenciaAtual = emCurso ? (emCurso.diligencia || null) : null;
   } else {
     // Sem histórico: força COAG agora
     const setorSelect = document.getElementById('edit-setor');
@@ -2528,9 +2728,7 @@ function atualizarPrecalculo() {
     E: parseInt(document.getElementById('campo-E').value, 10)
   };
   const calc = calcularSCT(tipo, dim);
-  const cargasPrimarios = {};
-  SERVIDORES_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
-  const previa = escolherServidor();
+  const ehRemessa = document.getElementById('campo-origem-externa')?.checked;
   const t = TIPOS_DEMANDA[tipo];
   let texto = '';
   if (t.sctFixo !== null) {
@@ -2538,9 +2736,18 @@ function atualizarPrecalculo() {
   } else {
     texto = `Score = ${calc.score} → <strong>${calc.nivel.codigo}</strong> → SCT base ${calc.sctBase} × ${calc.modificador} = <strong>${calc.sctFinal} SCT final</strong>`;
   }
-  texto += `<br>Previsão de distribuição: <strong>${previa.servidor}</strong>`;
-  if (previa.modo === 'suplencia') texto += ' <span style="color:var(--vermelho-alerta);">(suplência ativa)</span>';
-  texto += `<br><small style="color:var(--tinta-suave);">Cargas atuais: ${SERVIDORES_PRIMARIOS.map(f => `${f} ${cargasPrimarios[f].toFixed(1)}`).join(' · ')}</small>`;
+  if (ehRemessa) {
+    const setor = document.getElementById('campo-origem-setor')?.value || '?';
+    const dilSel = document.getElementById('campo-origem-diligencia')?.value || '?';
+    texto += `<br>Será remetido a <strong>${setor}</strong> para <strong>${dilSel}</strong>. Responsável será definido no retorno.`;
+  } else {
+    const cargasPrimarios = {};
+    SERVIDORES_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
+    const previa = escolherServidor();
+    texto += `<br>Previsão de distribuição: <strong>${previa.servidor}</strong>`;
+    if (previa.modo === 'suplencia') texto += ' <span style="color:var(--vermelho-alerta);">(suplência ativa)</span>';
+    texto += `<br><small style="color:var(--tinta-suave);">Cargas atuais: ${SERVIDORES_PRIMARIOS.map(f => `${f} ${cargasPrimarios[f].toFixed(1)}`).join(' · ')}</small>`;
+  }
   document.getElementById('precalculo').innerHTML = texto;
 }
 
@@ -3496,6 +3703,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     }));
 
   document.getElementById('btn-distribuir').addEventListener('click', distribuirNovo);
+
+  // Popula os selects de remessa externa (não podem usar template literal no HTML estático)
+  const selSetorRemessa = document.getElementById('campo-origem-setor');
+  selSetorRemessa.innerHTML = SETORES_DPE
+    .filter(s => s !== 'COAG')
+    .map(s => `<option value="${s}">${s}</option>`)
+    .join('');
+  const selDilRemessa = document.getElementById('campo-origem-diligencia');
+  selDilRemessa.innerHTML = DILIGENCIAS_COMUNS
+    .map(d => `<option value="${d}" ${d === 'Elaboração de ETP' ? 'selected' : ''}>${d}</option>`)
+    .join('');
+
+  // Checkbox de remessa externa: mostra/esconde bloco e ajusta rótulo do botão
+  const cbOrigem = document.getElementById('campo-origem-externa');
+  const blocoOrigem = document.getElementById('bloco-origem-externa');
+  const btnDistr = document.getElementById('btn-distribuir');
+  cbOrigem.addEventListener('change', () => {
+    if (cbOrigem.checked) {
+      blocoOrigem.classList.add('visivel');
+      btnDistr.textContent = 'Criar e remeter ao setor';
+    } else {
+      blocoOrigem.classList.remove('visivel');
+      btnDistr.textContent = 'Calcular e Distribuir';
+    }
+    atualizarPrecalculo();
+  });
   document.getElementById('btn-limpar').addEventListener('click', () => {
     document.getElementById('form-novo').reset();
     document.getElementById('painel-distribuicao').style.display = 'none';
@@ -3561,6 +3794,7 @@ window.concluirContratacao = concluirContratacao;
 window.retornarDiligencia = retornarDiligencia;
 window.excluirProcesso = excluirProcesso;
 window.restaurarSnapshot = restaurarSnapshot;
+window.distribuirProcessoExistente = distribuirProcessoExistente;
 window.dispensarConflitos = dispensarConflitos;
 </script>
 </body>
