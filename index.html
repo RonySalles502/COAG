@@ -298,6 +298,29 @@
     margin-top: 0.15rem;
     padding-left: 0.2rem;
   }
+  .badge-paralelo {
+    display: inline-block;
+    background: var(--azul-info);
+    color: var(--papel);
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    margin-bottom: 0.3rem;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+  }
+  .setor-paralelo {
+    padding: 0.25rem 0;
+    border-top: 1px dashed var(--borda);
+  }
+  .setor-paralelo:first-of-type {
+    border-top: none;
+  }
+  .dias-paralelo {
+    font-size: 0.7rem;
+    color: var(--tinta-suave);
+    font-weight: normal;
+  }
   #tabela-hist-setores input[type="date"],
   #tabela-hist-setores select {
     padding: 0.25rem 0.35rem;
@@ -1023,13 +1046,22 @@
       </table>
       <p class="legenda-config">Ao adicionar/remover membros COAG da comissão, a carga é recalculada automaticamente. Isso pode mudar quem será o próximo coordenador na rodada seguinte de distribuição automática.</p>
 
+      <h3>Diligências paralelas</h3>
+      <p style="font-size:0.9rem;">Um processo pode ter múltiplas diligências em curso simultaneamente em setores diferentes. Cada uma roda em sua própria timeline. O <strong>status do processo</strong> indica onde está o trabalho principal e é independente da existência de diligências paralelas. Exemplo: status <em>elaboração</em> (COAG trabalhando no TR) + parecer técnico paralelo no CTI + parecer jurídico paralelo no AJ.</p>
+      <ul style="font-size:0.9rem;">
+        <li><strong>Fechamento manual:</strong> períodos paralelos só são fechados manualmente (pela edição do histórico) ou automaticamente em <em>concluído</em> e <em>arquivado</em>.</li>
+        <li><strong>Mudança de status não fecha paralelas:</strong> mover o processo de <em>em diligência externa</em> para <em>elaboração</em> abre um período COAG, mas mantém as diligências secundárias em curso.</li>
+        <li><strong>Dias no setor</strong> mostra o maior tempo dentre os períodos em curso — representa "há quanto tempo o processo tem alguma diligência ativa".</li>
+        <li><strong>Botão "+ Solicitar diligência paralela"</strong> no modal de edição abre prompt rápido para escolher setor + diligência sem fechar outras.</li>
+      </ul>
+
       <h3>Estados que não consomem carga ativa</h3>
       <table>
         <thead>
           <tr><th>Status</th><th>Significado</th><th>Pode voltar?</th></tr>
         </thead>
         <tbody>
-          <tr><td><strong>Em diligência externa</strong></td><td>Processo está fora da COAG, em diligência ativa em outro setor (CEAP, CTI, AJ, DPGE etc.). Não significa parado — significa que outro setor está atuando antes do TR ser aprovado.</td><td>Sim — automaticamente ao voltar para fluxo COAG (edição manual altera status e setor).</td></tr>
+          <tr><td><strong>Em diligência externa</strong></td><td>Estado em que a COAG ainda não está trabalhando ativamente — aguardando diligência prévia (típico: pedido inicial de ETP). Distinto de processos com status <em>elaboração</em> que apenas possuem diligências paralelas secundárias em curso.</td><td>Sim — ao mudar status manualmente para fluxo COAG, ou quando a COAG inicia trabalho mesmo com diligências em curso.</td></tr>
           <tr><td><strong>Aprovado em trâmite</strong></td><td>TR foi aprovado pela Kerolaine, mas o processo continua tramitando (CL, AJ, DPGE, homologação, parecer jurídico). Não consome carga ativa.</td><td>Sim — via "Retornar para diligência". Reatribui automaticamente ao servidor de elaboração original.</td></tr>
           <tr><td><strong>Concluído</strong></td><td>Objeto plenamente atingido: contrato firmado, ARP publicada, OS emitida, inexigibilidade efetivada.</td><td>Apenas editando manualmente.</td></tr>
           <tr><td><strong>Arquivado</strong></td><td>Encerramento sem conclusão normal: perda de objeto, oportunidade fracassada, sobrestamento permanente, cancelamento.</td><td>Sim — via "Desarquivar". Permite escolher para qual status retornar.</td></tr>
@@ -1208,8 +1240,14 @@ const STATUS_ROTULOS = {
   bloqueado_externo:    { texto: 'Em diligência externa',  classe: 'status-bloqueado' }
 };
 
-// Setores da DPE/RN que podem ser destino/origem dos processos
-const SETORES_DPE = ['COAG', 'CFCC', 'SPL', 'CEAP', 'CTI', 'DPGE', 'SDPGE', 'RH', 'COPC', 'AJ', 'SRST', 'SDSP', 'Outro'];
+// Setores da DPE/RN que podem ser destino/origem dos processos.
+// COAG primeiro (padrão); demais em ordem alfabética; "Outro" por último.
+const SETORES_DPE = [
+  'COAG',
+  'AJ', 'CCSC', 'CEAP', 'CFCC', 'CL', 'COPC', 'CTI',
+  'DPGE', 'GSI', 'Protocolo', 'RH', 'SDPGE', 'SDSP', 'SPL', 'SRST',
+  'Outro'
+];
 
 // Tipos de diligência comumente solicitados a setores externos
 const DILIGENCIAS_COMUNS = [
@@ -1237,16 +1275,30 @@ const ORDEM_STATUS_GRUPOS = [
 ];
 
 // Helpers de setor e tempo no setor
+function periodosEmCurso(p) {
+  if (!p.historicoSetores) return [];
+  return p.historicoSetores.filter(h => h.saiuEm === null);
+}
+
+function setoresAtuaisDe(p) {
+  return periodosEmCurso(p).map(h => h.setor);
+}
+
+function temMultiplasDiligenciasParalelas(p) {
+  return periodosEmCurso(p).length > 1;
+}
+
 function registrarMudancaSetor(p, novoSetor, diligencia) {
   const agora = Date.now();
-  if (p.setorAtual === novoSetor && p.diligenciaAtual === diligencia) return; // sem mudança real
-  // Fecha o período anterior, se existir
+  // Fecha TODOS os períodos em curso (mudança de fase = fim das diligências externas pendentes)
   p.historicoSetores = p.historicoSetores || [];
-  const aberto = p.historicoSetores.find(h => h.saiuEm === null);
-  if (aberto) {
-    aberto.saiuEm = agora;
-    aberto.diasNoSetor = Math.floor((agora - aberto.entrouEm) / (1000 * 60 * 60 * 24));
-  }
+  p.historicoSetores.forEach(h => {
+    if (h.saiuEm === null) {
+      h.saiuEm = agora;
+      h.diasNoSetor = Math.floor((agora - h.entrouEm) / (1000 * 60 * 60 * 24));
+    }
+  });
+  // Abre novo período
   p.historicoSetores.push({
     setor: novoSetor,
     entrouEm: agora,
@@ -1259,17 +1311,92 @@ function registrarMudancaSetor(p, novoSetor, diligencia) {
   p.diligenciaAtual = diligencia || null;
 }
 
-// Retorna a diligência atual do processo (do período em curso) ou null
-function diligenciaAtualDe(p) {
-  if (!p.historicoSetores || p.historicoSetores.length === 0) return null;
-  const emCurso = p.historicoSetores.find(h => h.saiuEm === null);
-  if (emCurso && emCurso.diligencia) return emCurso.diligencia;
-  return p.diligenciaAtual || null;
+// Adiciona um período em curso em COAG SEM fechar diligências paralelas em outros setores.
+// Usar quando a COAG começa a trabalhar mas há diligências secundárias em curso.
+function adicionarPeriodoCOAG(p) {
+  p.historicoSetores = p.historicoSetores || [];
+  // Já existe período COAG em curso? Não duplica.
+  const jaTemCOAG = p.historicoSetores.some(h => h.saiuEm === null && h.setor === 'COAG');
+  if (jaTemCOAG) return;
+  const agora = Date.now();
+  p.historicoSetores.push({
+    setor: 'COAG',
+    entrouEm: agora,
+    saiuEm: null,
+    diasNoSetor: null,
+    diligencia: null
+  });
+  p.setorAtual = 'COAG';
+  p.dataEntradaSetor = agora;
+  p.diligenciaAtual = null;
 }
 
+// Fecha todos os períodos em curso. Usar em arquivamento/conclusão de contratação.
+function fecharTodosOsPeriodos(p) {
+  const agora = Date.now();
+  (p.historicoSetores || []).forEach(h => {
+    if (h.saiuEm === null) {
+      h.saiuEm = agora;
+      h.diasNoSetor = Math.floor((agora - h.entrouEm) / (1000 * 60 * 60 * 24));
+    }
+  });
+}
+
+// Adiciona uma diligência paralela SEM fechar as existentes
+function adicionarDiligenciaParalela(p, setor, diligencia, entrouEm) {
+  const ts = entrouEm || Date.now();
+  p.historicoSetores = p.historicoSetores || [];
+  p.historicoSetores.push({
+    setor,
+    entrouEm: ts,
+    saiuEm: null,
+    diasNoSetor: null,
+    diligencia: diligencia || null
+  });
+  // Mantém setorAtual/diligenciaAtual apontando para o mais recente (compatibilidade)
+  p.setorAtual = setor;
+  p.dataEntradaSetor = ts;
+  p.diligenciaAtual = diligencia || null;
+}
+
+// Conclui uma diligência específica (por índice no histórico)
+function concluirDiligencia(p, idxHistorico, dataConclusao) {
+  const ts = dataConclusao || Date.now();
+  const h = p.historicoSetores[idxHistorico];
+  if (!h || h.saiuEm !== null) return false;
+  h.saiuEm = ts;
+  h.diasNoSetor = Math.floor((ts - h.entrouEm) / (1000 * 60 * 60 * 24));
+  // Atualiza setorAtual para o próximo em curso (se houver)
+  const restantes = periodosEmCurso(p);
+  if (restantes.length > 0) {
+    const maisRecente = restantes[restantes.length - 1];
+    p.setorAtual = maisRecente.setor;
+    p.dataEntradaSetor = maisRecente.entrouEm;
+    p.diligenciaAtual = maisRecente.diligencia;
+  }
+  return true;
+}
+
+// Retorna a diligência do período em curso (único) ou null. Quando há
+// múltiplos períodos paralelos, retorna null — a UI deve listar todos.
+function diligenciaAtualDe(p) {
+  const ativos = periodosEmCurso(p);
+  if (ativos.length === 1) return ativos[0].diligencia || null;
+  if (ativos.length === 0) return p.diligenciaAtual || null;
+  return null; // múltiplos — exibir separadamente
+}
+
+// "Dias no setor" agora representa: maior tempo entre períodos em curso.
+// Se 3 diligências paralelas, mostra a mais antiga (representa "há quanto tempo o
+// processo está bloqueado fora da COAG").
 function diasNoSetorAtual(p) {
-  if (!p.dataEntradaSetor) return 0;
-  return Math.floor((Date.now() - p.dataEntradaSetor) / (1000 * 60 * 60 * 24));
+  const ativos = periodosEmCurso(p);
+  if (ativos.length === 0) {
+    if (!p.dataEntradaSetor) return 0;
+    return Math.floor((Date.now() - p.dataEntradaSetor) / (1000 * 60 * 60 * 24));
+  }
+  const maisAntigo = ativos.reduce((acc, h) => h.entrouEm < acc.entrouEm ? h : acc, ativos[0]);
+  return Math.floor((Date.now() - maisAntigo.entrouEm) / (1000 * 60 * 60 * 24));
 }
 
 // Conversão entre timestamp e formato YYYY-MM-DD (input type=date)
@@ -1848,6 +1975,21 @@ function renderProcessos() {
       } else if (coag.length === 0) {
         sctTxt = `<span title="Nenhum servidor COAG envolvido — carga = 0" style="color:var(--tinta-fraca);">${sctTotal} <span class="badge-divisao" style="background:var(--tinta-fraca);">externo</span></span>`;
       }
+      // Setor + diligência (HTML, suporta paralelas)
+      const ativos = periodosEmCurso(p);
+      let setorCell;
+      if (ativos.length === 0) {
+        setorCell = p.setorAtual || '—';
+      } else if (ativos.length === 1) {
+        const dil = ativos[0].diligencia;
+        setorCell = `${ativos[0].setor}${dil ? `<div class="diligencia-info">↳ ${dil}</div>` : ''}`;
+      } else {
+        const itens = ativos.map(h => {
+          const d = Math.floor((Date.now() - h.entrouEm) / (1000 * 60 * 60 * 24));
+          return `<div class="setor-paralelo"><strong>${h.setor}</strong> <span class="dias-paralelo">${d}d</span>${h.diligencia ? `<div class="diligencia-info">↳ ${h.diligencia}</div>` : ''}</div>`;
+        }).join('');
+        setorCell = `<div class="badge-paralelo" title="${ativos.length} diligências paralelas">⇉ ${ativos.length} paralelas</div>${itens}`;
+      }
       // Dias no setor
       const dias = diasNoSetorAtual(p);
       const diasTxt = ehTerminal
@@ -1862,8 +2004,7 @@ function renderProcessos() {
           <td class="num">${sctTxt}</td>
           <td>${responsavelTxt}</td>
           <td>
-            ${p.setorAtual || '—'}
-            ${diligenciaAtualDe(p) ? `<div class="diligencia-info">↳ ${diligenciaAtualDe(p)}</div>` : ''}
+            ${setorCell}
           </td>
           <td class="num">${diasTxt}</td>
           <td>
@@ -2084,9 +2225,13 @@ function avancarStatus(id, novoStatus) {
   p.status = novoStatus;
   p.entrouFilaEm = Date.now();
   p.ultimaAtualizacao = Date.now();
-  // Status COAG-interno: garante setor = COAG
+  // Status COAG-interno: garante que existe período COAG em curso (sem fechar paralelas)
   if (['elaboracao', 'revisao_matheus', 'aprovacao_kerolaine'].includes(novoStatus)) {
-    registrarMudancaSetor(p, 'COAG');
+    adicionarPeriodoCOAG(p);
+  }
+  // Status terminal (aditivo concluído por avançar): fecha tudo
+  if (novoStatus === 'concluido' || novoStatus === 'arquivado') {
+    fecharTodosOsPeriodos(p);
   }
   p.historico = p.historico || [];
   p.historico.push({ ts: Date.now(), evento: 'Status → ' + (STATUS_ROTULOS[novoStatus]?.texto || novoStatus) });
@@ -2116,12 +2261,7 @@ function concluirContratacao(id) {
   if (detalhe === null) return;
   p.status = 'concluido';
   p.ultimaAtualizacao = Date.now();
-  // Fecha período atual no historicoSetores
-  const aberto = (p.historicoSetores || []).find(h => h.saiuEm === null);
-  if (aberto) {
-    aberto.saiuEm = Date.now();
-    aberto.diasNoSetor = Math.floor((Date.now() - aberto.entrouEm) / (1000 * 60 * 60 * 24));
-  }
+  fecharTodosOsPeriodos(p);
   p.historico = p.historico || [];
   p.historico.push({
     ts: Date.now(),
@@ -2154,7 +2294,7 @@ function retornarDiligencia(id) {
   p.status = 'elaboracao';
   p.ultimaAtualizacao = Date.now();
   p.entrouFilaEm = null;
-  registrarMudancaSetor(p, 'COAG');
+  adicionarPeriodoCOAG(p);
   p.historico = p.historico || [];
   p.historico.push({
     ts: Date.now(),
@@ -2183,12 +2323,7 @@ function arquivarProcesso(id) {
   if (motivo === null) return; // cancelado
   p.status = 'arquivado';
   p.ultimaAtualizacao = Date.now();
-  // Fecha período atual do setor
-  const aberto = (p.historicoSetores || []).find(h => h.saiuEm === null);
-  if (aberto) {
-    aberto.saiuEm = Date.now();
-    aberto.diasNoSetor = Math.floor((Date.now() - aberto.entrouEm) / (1000 * 60 * 60 * 24));
-  }
+  fecharTodosOsPeriodos(p);
   p.historico = p.historico || [];
   p.historico.push({
     ts: Date.now(),
@@ -2281,7 +2416,11 @@ function desarquivarProcesso(id) {
     return;
   }
   p.status = novoStatus;
-  registrarMudancaSetor(p, setorEscolhido, diligenciaEscolhida);
+  if (setorEscolhido === 'COAG') {
+    adicionarPeriodoCOAG(p);
+  } else {
+    adicionarDiligenciaParalela(p, setorEscolhido, diligenciaEscolhida);
+  }
   p.entrouFilaEm = (novoStatus === 'revisao_matheus' || novoStatus === 'aprovacao_kerolaine') ? Date.now() : null;
   p.ultimaAtualizacao = Date.now();
   p.historico = p.historico || [];
@@ -2402,14 +2541,22 @@ function abrirEdicao(id) {
         <textarea id="edit-obs">${p.observacoes || ''}</textarea>
       </div>
       <div class="full" style="grid-column:1/-1;">
-        <label>Histórico de setores <small>edite datas para reconstruir o trajeto do processo; deixe "Saiu" em branco para período em curso</small></label>
+        <label>Histórico de setores <small>edite datas para reconstruir o trajeto; deixe "Saiu" em branco para diligência em curso. Múltiplas diligências em curso simultaneamente são permitidas (paralelismo).</small></label>
         <table id="tabela-hist-setores" style="font-size:0.78rem; width:100%;">
           <thead><tr><th>Setor</th><th>Diligência</th><th>Entrou</th><th>Saiu</th><th class="num">Dias</th><th></th><th></th></tr></thead>
           <tbody id="hist-setores-tbody">${histRows || '<tr><td colspan="7" style="color:var(--tinta-fraca);font-style:italic;">Sem histórico registrado</td></tr>'}</tbody>
         </table>
-        <button type="button" class="btn pequeno secundario" id="btn-adicionar-periodo" style="margin-top:0.4rem;">+ Adicionar período</button>
+        <div style="display:flex; gap:0.5rem; margin-top:0.4rem; flex-wrap:wrap;">
+          <button type="button" class="btn pequeno secundario" id="btn-adicionar-periodo">+ Adicionar período</button>
+          <button type="button" class="btn pequeno" id="btn-adicionar-paralela">+ Solicitar diligência paralela <small style="font-weight:normal;">(em curso, sem fechar as existentes)</small></button>
+        </div>
+        ${temMultiplasDiligenciasParalelas(p)
+          ? `<div style="margin-top:0.5rem; padding:0.4rem 0.6rem; background:#e3f0fa; border-left:3px solid #1976d2; font-size:0.78rem;">
+              <strong>⇉ ${periodosEmCurso(p).length} diligências em curso simultaneamente</strong> — o processo só voltará à COAG quando todas forem concluídas (saída preenchida) ou quando você mudar o status manualmente.
+            </div>`
+          : ''}
         <p class="legenda-config" style="margin-top:0.4rem;">
-          Ao salvar, o histórico é a <strong>fonte de verdade</strong> do setor atual. O setor do período em curso (sem data de saída) sobrescreve a seleção "Setor atual" acima.
+          Ao salvar, o histórico é a <strong>fonte de verdade</strong> do(s) setor(es) em curso.
         </p>
       </div>
     </div>
@@ -2441,15 +2588,49 @@ function abrirEdicao(id) {
   // Listeners do histórico de setores
   document.getElementById('btn-adicionar-periodo').addEventListener('click', () => {
     p.historicoSetores = p.historicoSetores || [];
-    // Por padrão: setor = setor atual, entrouEm = hoje, saiuEm = null se ninguém estiver "em curso", senão data atual
-    const algumEmCurso = p.historicoSetores.some(h => h.saiuEm === null);
+    // Cria um novo período em curso (saiuEm = null). Múltiplos em curso agora são permitidos.
     const hoje = Date.now();
     p.historicoSetores.push({
       setor: p.setorAtual || 'COAG',
       entrouEm: hoje,
-      saiuEm: algumEmCurso ? hoje : null,
-      diasNoSetor: algumEmCurso ? 0 : null
+      saiuEm: null,
+      diasNoSetor: null,
+      diligencia: null
     });
+    abrirEdicao(id);
+  });
+  document.getElementById('btn-adicionar-paralela').addEventListener('click', () => {
+    const setores = SETORES_DPE.filter(s => s !== 'COAG');
+    const lista = setores.map((s, i) => `${i+1} — ${s}`).join('\n');
+    const r = prompt('Diligência paralela em qual setor?\n\n' + lista + '\n\nDigite o número:', '');
+    if (r === null) return;
+    const idx = parseInt(r.trim(), 10) - 1;
+    if (idx < 0 || idx >= setores.length) { toast('Setor inválido', true); return; }
+    const setor = setores[idx];
+    const listaDil = DILIGENCIAS_COMUNS.map((d, i) => `${i+1} — ${d}`).join('\n');
+    const rd = prompt('Diligência solicitada?\n\n' + listaDil + '\n\nDigite o número (em branco = nenhuma):', '');
+    if (rd === null) return;
+    let dil = null;
+    if (rd.trim() !== '') {
+      const idd = parseInt(rd.trim(), 10) - 1;
+      if (idd >= 0 && idd < DILIGENCIAS_COMUNS.length) {
+        dil = DILIGENCIAS_COMUNS[idd];
+        if (dil === 'Outro') {
+          const livre = prompt('Descreva a diligência:', '');
+          if (livre === null) return;
+          dil = livre.trim() || null;
+        }
+      }
+    }
+    adicionarDiligenciaParalela(p, setor, dil);
+    // NÃO altera o status do processo. A diligência paralela é independente do trabalho
+    // principal — se a COAG estava elaborando, continua elaborando.
+    if (p.status === 'concluido' || p.status === 'arquivado') {
+      toast('Atenção: processo está em status terminal. Considere desarquivar/reabrir antes.', true);
+    }
+    p.historico = p.historico || [];
+    p.historico.push({ ts: Date.now(), evento: `Diligência paralela solicitada a ${setor}${dil ? ` (${dil})` : ''}` });
+    salvar();
     abrirEdicao(id);
   });
   document.querySelectorAll('.hist-remover').forEach(btn => {
@@ -2486,7 +2667,6 @@ function coletarHistoricoEditado() {
   const rows = document.querySelectorAll('#hist-setores-tbody tr[data-idx]');
   if (rows.length === 0) return { ok: true, historico: [] };
   const novo = [];
-  let qtdEmCurso = 0;
   for (const row of rows) {
     const setor = row.querySelector('.hist-setor')?.value;
     const diligencia = row.querySelector('.hist-diligencia')?.value || null;
@@ -2499,7 +2679,6 @@ function coletarHistoricoEditado() {
     if (saiuEm !== null && saiuEm < entrouEm) {
       return { ok: false, erro: `Período em ${setor}: data de saída (${saiuStr}) anterior à entrada (${entrouStr})` };
     }
-    if (saiuEm === null) qtdEmCurso++;
     novo.push({
       setor,
       entrouEm,
@@ -2508,23 +2687,10 @@ function coletarHistoricoEditado() {
       diligencia
     });
   }
-  if (qtdEmCurso > 1) {
-    return { ok: false, erro: 'Apenas um período pode estar em curso (saída em branco). Hoje há ' + qtdEmCurso + '.' };
-  }
+  // Múltiplos períodos em curso são permitidos (diligências paralelas)
   // Ordena por data de entrada
   novo.sort((a, b) => a.entrouEm - b.entrouEm);
-  // Valida sobreposição cronológica
-  for (let i = 1; i < novo.length; i++) {
-    const anterior = novo[i - 1];
-    if (anterior.saiuEm === null) {
-      return { ok: false, erro: 'Período em curso deve ser o último cronologicamente — há período após ele' };
-    }
-    if (anterior.saiuEm > novo[i].entrouEm) {
-      const dataAnt = new Date(anterior.saiuEm).toLocaleDateString('pt-BR');
-      const dataAtual = new Date(novo[i].entrouEm).toLocaleDateString('pt-BR');
-      return { ok: false, erro: `Sobreposição: ${anterior.setor} sai em ${dataAnt} mas ${novo[i].setor} entra em ${dataAtual}` };
-    }
-  }
+  // Não valida mais sobreposição cronológica — períodos paralelos são esperados.
   return { ok: true, historico: novo };
 }
 
@@ -2551,24 +2717,16 @@ function salvarEdicao() {
   // Aplica histórico editado e deriva setorAtual + dataEntradaSetor + diligenciaAtual
   p.historicoSetores = resultado.historico;
   if (resultado.historico.length > 0) {
-    // Período em curso vence; senão, último encerrado
-    const emCurso = resultado.historico.find(h => h.saiuEm === null);
-    const referencia = emCurso || resultado.historico[resultado.historico.length - 1];
+    // Mais recente em curso vence; senão, último encerrado
+    const emCurso = resultado.historico.filter(h => h.saiuEm === null);
+    const referencia = emCurso.length > 0
+      ? emCurso.reduce((acc, h) => h.entrouEm > acc.entrouEm ? h : acc, emCurso[0])
+      : resultado.historico[resultado.historico.length - 1];
     p.setorAtual = referencia.setor;
     p.dataEntradaSetor = referencia.entrouEm;
-    p.diligenciaAtual = emCurso ? (emCurso.diligencia || null) : null;
-  } else {
-    // Sem histórico: força COAG agora
-    const setorSelect = document.getElementById('edit-setor');
-    const setorEscolhido = setorSelect ? setorSelect.value : 'COAG';
-    if (setorEscolhido !== p.setorAtual) {
-      registrarMudancaSetor(p, setorEscolhido);
-    }
+    p.diligenciaAtual = referencia.saiuEm === null ? (referencia.diligencia || null) : null;
   }
-  // Força COAG para status internos (regra de coerência)
-  if (['elaboracao', 'revisao_matheus', 'aprovacao_kerolaine'].includes(novoStatus) && p.setorAtual !== 'COAG') {
-    registrarMudancaSetor(p, 'COAG');
-  }
+  // Sem mais "regra de coerência forçada para COAG" — status e setor são independentes
   p.historico = p.historico || [];
   p.historico.push({ ts: Date.now(), evento: 'Edição manual' });
   salvar();
@@ -2670,9 +2828,19 @@ function construirMatrizProcessos() {
       } else if (coag.length === 0) {
         sctTxt = `${sctTotal} (externo)`;
       }
-      // Setor + diligência
-      const dilig = diligenciaAtualDe(p);
-      const setorTxt = dilig ? `${p.setorAtual}\n↳ ${dilig}` : (p.setorAtual || '—');
+      // Setor + diligência (texto plano para XLSX, suporta múltiplas paralelas)
+      const ativos = periodosEmCurso(p);
+      let setorTxt;
+      if (ativos.length === 0) {
+        setorTxt = p.setorAtual || '—';
+      } else if (ativos.length === 1) {
+        const a = ativos[0];
+        setorTxt = a.diligencia ? `${a.setor}\n↳ ${a.diligencia}` : a.setor;
+      } else {
+        setorTxt = `⇉ ${ativos.length} paralelas\n` + ativos.map(h =>
+          `• ${h.setor}${h.diligencia ? ` (${h.diligencia})` : ''}`
+        ).join('\n');
+      }
       // Dias
       const ehTerminal = p.status === 'concluido' || p.status === 'arquivado';
       const dias = diasNoSetorAtual(p);
@@ -2885,24 +3053,34 @@ function exportarJSON() {
   toast('JSON exportado');
 }
 function exportarCSV() {
-  const cab = ['SEI','Objeto','Tipo','Score','Nivel','SCT_base','Modificador','SCT_final','Coordenador','Comissao','Status','Setor','Dias_no_setor','Criado','Atualizado'];
-  const linhas = estado.processos.map(p => [
-    p.sei || '',
-    (p.objeto || '').replace(/"/g, '""'),
-    TIPOS_DEMANDA[p.tipoDemanda]?.rotulo || '',
-    p.score ?? '',
-    p.nivelCodigo || '',
-    p.sctBase ?? '',
-    p.modificador ?? '',
-    p.sctFinal ?? '',
-    p.servidorElaboracao || '',
-    (p.comissaoElaboracao || []).join('; '),
-    STATUS_ROTULOS[p.status]?.texto || p.status || '',
-    p.setorAtual || '',
-    diasNoSetorAtual(p),
-    p.criadoEm ? new Date(p.criadoEm).toISOString() : '',
-    p.ultimaAtualizacao ? new Date(p.ultimaAtualizacao).toISOString() : ''
-  ].map(c => `"${c}"`).join(','));
+  const cab = ['SEI','Objeto','Tipo','Score','Nivel','SCT_base','Modificador','SCT_final','Coordenador','Comissao','Status','Setores_em_curso','Diligencias_em_curso','Dias_no_setor','Criado','Atualizado'];
+  const linhas = estado.processos.map(p => {
+    const ativos = periodosEmCurso(p);
+    const setoresAtivos = ativos.length > 0
+      ? ativos.map(h => h.setor).join('; ')
+      : (p.setorAtual || '');
+    const diligenciasAtivas = ativos.length > 0
+      ? ativos.map(h => h.diligencia || '').filter(Boolean).join('; ')
+      : '';
+    return [
+      p.sei || '',
+      (p.objeto || '').replace(/"/g, '""'),
+      TIPOS_DEMANDA[p.tipoDemanda]?.rotulo || '',
+      p.score ?? '',
+      p.nivelCodigo || '',
+      p.sctBase ?? '',
+      p.modificador ?? '',
+      p.sctFinal ?? '',
+      p.servidorElaboracao || '',
+      (p.comissaoElaboracao || []).join('; '),
+      STATUS_ROTULOS[p.status]?.texto || p.status || '',
+      setoresAtivos,
+      diligenciasAtivas,
+      diasNoSetorAtual(p),
+      p.criadoEm ? new Date(p.criadoEm).toISOString() : '',
+      p.ultimaAtualizacao ? new Date(p.ultimaAtualizacao).toISOString() : ''
+    ].map(c => `"${c}"`).join(',');
+  });
   const csv = [cab.join(','), ...linhas].join('\n');
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
