@@ -173,10 +173,35 @@ JSON exportável tem o formato:
   "config": {
     "limiarSuplencia": 12,
     "slaMatheus": 2,
-    "slaKerolaine": 2
+    "slaKerolaine": 2,
+    "ausencias": [
+      {
+        "id": "p_xxx",
+        "servidor": "Liza" | "Thiago" | "Lucas" | "Matheus",
+        "tipo": "ferias" | "licenca_medica" | "licenca_premio" | "licenca_maternidade" | "licenca_capacitacao" | "outro",
+        "dataInicio": 1234567890,
+        "dataFim": 1234567890,
+        "observacoes": "...",
+        "criadoEm": 1234567890
+      }
+    ]
   }
 }
 ```
+
+---
+
+## Ausências legais (aba **Ausências**)
+
+Permite registrar férias, licenças e demais afastamentos legais dos servidores da COAG (Liza, Lucas, Thiago, Matheus). Enquanto a ausência estiver em curso (data atual entre início e término):
+
+- O servidor fica **bloqueado na distribuição automática** — o algoritmo (`escolherServidor`) o exclui do cálculo de menor carga e ele não recebe novos processos.
+- A carga já atribuída anteriormente **não é redistribuída automaticamente** — apenas novas distribuições evitam o servidor ausente.
+- Se **todos os primários** (Liza, Lucas, Thiago) estiverem ausentes, Matheus assume como suplente mesmo fora do limiar de suplência configurado.
+- Se **todos os servidores** (primários + Matheus) estiverem ausentes, o sistema não realiza a distribuição e avisa que não há ninguém disponível.
+- No cadastro manual (edição de processo), servidores ausentes aparecem marcados como "(ausente)" na lista — a atribuição manual continua possível, apenas informativa.
+
+As ausências fazem parte de `config`, portanto acompanham a mesma sincronização do modo compartilhado (`_config.json`) — um servidor registrado por qualquer colega bloqueia a distribuição para toda a equipe.
 
 ---
 

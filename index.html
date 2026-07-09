@@ -757,6 +757,7 @@
     <button class="tab-btn" data-tab="processos">Processos</button>
     <button class="tab-btn" data-tab="novo">Novo Processo</button>
     <button class="tab-btn" data-tab="filas">Filas de Aprovação</button>
+    <button class="tab-btn" data-tab="ausencias">Ausências</button>
     <button class="tab-btn" data-tab="matriz">Matriz SCT</button>
     <button class="tab-btn" data-tab="config">Configuração</button>
     <button class="tab-btn" data-tab="backup">Backup / Importar</button>
@@ -972,6 +973,44 @@
         <div id="fila-kerolaine"></div>
       </div>
     </div>
+  </section>
+
+  <!-- AUSÊNCIAS LEGAIS -->
+  <section class="tab-pane" id="tab-ausencias">
+    <h2>Ausências Legais</h2>
+    <p class="legenda-config">
+      Registre férias, licenças e demais afastamentos legais dos servidores da COAG.
+      Enquanto a ausência estiver em curso, o servidor fica <strong>bloqueado na distribuição automática</strong>
+      (não recebe novos processos), mas mantém a carga já atribuída anteriormente.
+    </p>
+    <form class="painel-form" id="form-ausencia" onsubmit="return false;">
+      <div>
+        <label>Servidor</label>
+        <select id="aus-servidor"></select>
+      </div>
+      <div>
+        <label>Tipo de ausência</label>
+        <select id="aus-tipo"></select>
+      </div>
+      <div>
+        <label>Data de início</label>
+        <input type="date" id="aus-inicio">
+      </div>
+      <div>
+        <label>Data de término</label>
+        <input type="date" id="aus-fim">
+      </div>
+      <div class="full">
+        <label>Observações <small>opcional</small></label>
+        <textarea id="aus-obs" placeholder="Opcional"></textarea>
+      </div>
+      <div class="acoes">
+        <button class="btn" id="btn-registrar-ausencia">Registrar ausência</button>
+      </div>
+    </form>
+
+    <h3>Ausências registradas</h3>
+    <div id="lista-ausencias"></div>
   </section>
 
   <!-- MATRIZ -->
@@ -1221,7 +1260,18 @@ const STORAGE_KEY = 'coag_distribuicao_v2';
 const CONFIG_PADRAO = {
   limiarSuplencia: 12,
   slaMatheus: 2,
-  slaKerolaine: 2
+  slaKerolaine: 2,
+  ausencias: []
+};
+
+// Tipos de ausência legal reconhecidos pelo sistema
+const TIPOS_AUSENCIA = {
+  ferias:               { rotulo: 'Férias' },
+  licenca_medica:       { rotulo: 'Licença Médica' },
+  licenca_premio:       { rotulo: 'Licença Prêmio' },
+  licenca_maternidade:  { rotulo: 'Licença Maternidade/Paternidade' },
+  licenca_capacitacao:  { rotulo: 'Licença Capacitação' },
+  outro:                { rotulo: 'Outro afastamento legal' }
 };
 
 const TIPOS_DEMANDA = {
@@ -1436,6 +1486,15 @@ function servidoresCOAGEnvolvidos(p) {
     if (ehServidorCOAG(m)) set.add(m);
   }
   return Array.from(set);
+}
+
+// Ausência legal ativa de um servidor em um dado instante (null se não houver)
+function ausenciaAtivaDe(servidor, ts = Date.now()) {
+  const ausencias = estado.config.ausencias || [];
+  return ausencias.find(a => a.servidor === servidor && ts >= a.dataInicio && ts <= a.dataFim) || null;
+}
+function servidorAusente(servidor, ts = Date.now()) {
+  return !!ausenciaAtivaDe(servidor, ts);
 }
 
 // Fatia de SCT que um servidor recebe deste processo (0 se não envolvido ou se externo)
@@ -1712,11 +1771,25 @@ function ultimoTimestamp(servidor) {
 function escolherServidor() {
   const cargasPrimarios = {};
   SERVIDORES_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
-  const todosNoLimite = SERVIDORES_PRIMARIOS.every(f => cargasPrimarios[f] >= estado.config.limiarSuplencia);
 
-  let candidatos = [...SERVIDORES_PRIMARIOS];
+  // Servidores em ausência legal (férias, licenças etc.) ficam bloqueados na distribuição
+  const disponiveis = SERVIDORES_PRIMARIOS.filter(f => !servidorAusente(f));
+  const matheusAusente = servidorAusente(MATHEUS);
+
+  if (disponiveis.length === 0) {
+    // Todos os primários estão ausentes — Matheus assume mesmo fora do limiar, se disponível
+    if (!matheusAusente) {
+      cargasPrimarios[MATHEUS] = somaSCTAtiva(MATHEUS);
+      return { servidor: MATHEUS, modo: 'suplencia_ausencia', cargas: cargasPrimarios };
+    }
+    return { servidor: null, modo: 'indisponivel', cargas: cargasPrimarios };
+  }
+
+  const todosNoLimite = disponiveis.every(f => cargasPrimarios[f] >= estado.config.limiarSuplencia);
+
+  let candidatos = [...disponiveis];
   let modo = 'primario';
-  if (todosNoLimite) {
+  if (todosNoLimite && !matheusAusente) {
     candidatos.push(MATHEUS);
     cargasPrimarios[MATHEUS] = somaSCTAtiva(MATHEUS);
     modo = 'suplencia';
@@ -1817,6 +1890,11 @@ function renderDashboard() {
       <div class="valor">${todosNoLimite ? 'SIM' : 'NÃO'}</div>
       <div class="detalhe">Limiar ${estado.config.limiarSuplencia} SCT</div>
     </div>
+    <div class="card ${[...SERVIDORES_PRIMARIOS, MATHEUS].some(f => servidorAusente(f)) ? 'atencao' : ''}">
+      <div class="rotulo">Servidores ausentes hoje</div>
+      <div class="valor">${[...SERVIDORES_PRIMARIOS, MATHEUS].filter(f => servidorAusente(f)).length}</div>
+      <div class="detalhe">Bloqueados na distribuição automática</div>
+    </div>
   `;
   document.getElementById('cards-resumo').innerHTML = cardsHtml;
 
@@ -1832,11 +1910,15 @@ function renderDashboard() {
     if (carga >= estado.config.limiarSuplencia) classe = 'alerta';
     else if (carga >= estado.config.limiarSuplencia * 0.75) classe = 'atencao';
     const papel = f === MATHEUS ? 'Suplente / Revisor' : 'Elaboração';
+    const ausencia = ausenciaAtivaDe(f);
+    const badgeAusente = ausencia
+      ? ` <span class="badge status-bloqueado" title="${TIPOS_AUSENCIA[ausencia.tipo]?.rotulo || ausencia.tipo} até ${formatarData(ausencia.dataFim).split(' ')[0]}">bloqueado — ausente</span>`
+      : '';
     barrasHtml += `
       <div class="barra-servidor">
-        <div class="nome">${f}<small>${papel}</small></div>
+        <div class="nome">${f}<small>${papel}</small>${badgeAusente}</div>
         <div class="barra-wrapper">
-          <div class="barra-preenchida ${classe}" style="width:${pct}%"></div>
+          <div class="barra-preenchida ${classe}" style="width:${pct}%${ausencia ? ';opacity:0.5' : ''}"></div>
           <div class="barra-limiar" style="left:${limiarPct}%" title="Limiar de suplência"></div>
         </div>
         <div class="pct">${carga.toFixed(1)} SCT</div>
@@ -2072,6 +2154,92 @@ function renderFilas() {
 }
 
 // ============================================================================
+//  RENDERIZAÇÃO — AUSÊNCIAS LEGAIS
+// ============================================================================
+function preencherSelectsAusencia() {
+  const selServidor = document.getElementById('aus-servidor');
+  selServidor.innerHTML = [...SERVIDORES_PRIMARIOS, MATHEUS]
+    .map(f => `<option value="${f}">${f}</option>`).join('');
+  const selTipo = document.getElementById('aus-tipo');
+  selTipo.innerHTML = Object.entries(TIPOS_AUSENCIA)
+    .map(([k, v]) => `<option value="${k}">${v.rotulo}</option>`).join('');
+}
+
+function renderAusencias() {
+  const container = document.getElementById('lista-ausencias');
+  const ausencias = estado.config.ausencias || [];
+  if (ausencias.length === 0) {
+    container.innerHTML = '<p class="legenda-config">Nenhuma ausência registrada.</p>';
+    return;
+  }
+  const agora = Date.now();
+  const ordenadas = [...ausencias].sort((a, b) => b.dataInicio - a.dataInicio);
+  container.innerHTML = ordenadas.map(a => {
+    const emCurso = agora >= a.dataInicio && agora <= a.dataFim;
+    const futura = a.dataInicio > agora;
+    const statusTexto = emCurso ? 'Em curso — bloqueado' : futura ? 'Agendada' : 'Encerrada';
+    const statusClasse = emCurso ? 'status-bloqueado' : futura ? 'status-elaboracao' : 'status-arquivado';
+    return `
+      <div class="card" style="margin-bottom:0.6rem; text-align:left;">
+        <div class="rotulo">${a.servidor} · ${TIPOS_AUSENCIA[a.tipo]?.rotulo || a.tipo}</div>
+        <div class="detalhe">
+          ${formatarData(a.dataInicio).split(' ')[0]} a ${formatarData(a.dataFim).split(' ')[0]}
+          · <span class="badge ${statusClasse}">${statusTexto}</span>
+        </div>
+        ${a.observacoes ? `<div class="detalhe">${a.observacoes}</div>` : ''}
+        <div class="acoes" style="margin-top:0.4rem;">
+          <button class="btn pequeno perigo" onclick="removerAusencia('${a.id}')">Remover</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function registrarAusencia() {
+  const servidor = document.getElementById('aus-servidor').value;
+  const tipo = document.getElementById('aus-tipo').value;
+  const inicioStr = document.getElementById('aus-inicio').value;
+  const fimStr = document.getElementById('aus-fim').value;
+  const observacoes = document.getElementById('aus-obs').value.trim();
+
+  if (!inicioStr || !fimStr) {
+    toast('Informe as datas de início e término', true);
+    return;
+  }
+  const dataInicio = dateInputParaTs(inicioStr);
+  // Fim inclusivo: vale até o final do dia informado
+  const dataFim = dateInputParaTs(fimStr) + (24 * 60 * 60 * 1000 - 1);
+  if (dataFim < dataInicio) {
+    toast('Data de término não pode ser anterior à data de início', true);
+    return;
+  }
+
+  estado.config.ausencias = estado.config.ausencias || [];
+  estado.config.ausencias.push({
+    id: uuid(),
+    servidor,
+    tipo,
+    dataInicio,
+    dataFim,
+    observacoes,
+    criadoEm: Date.now()
+  });
+  salvar();
+  renderTudo();
+  document.getElementById('form-ausencia').reset();
+  toast(`Ausência de ${servidor} registrada`);
+}
+
+function removerAusencia(id) {
+  if (!confirm('Remover esta ausência? O servidor voltará a ficar disponível na distribuição.')) return;
+  estado.config.ausencias = (estado.config.ausencias || []).filter(a => a.id !== id);
+  salvar();
+  renderTudo();
+  toast('Ausência removida');
+}
+window.removerAusencia = removerAusencia;
+
+// ============================================================================
 //  AÇÕES
 // ============================================================================
 function distribuirNovo() {
@@ -2127,6 +2295,10 @@ function distribuirNovo() {
   } else {
     distInfo = escolherServidor();
     servidorAtribuido = distInfo.servidor;
+    if (!servidorAtribuido) {
+      toast('Nenhum servidor disponível — todos os primários e Matheus estão em ausência legal', true);
+      return;
+    }
   }
 
   const proc = {
@@ -2179,9 +2351,12 @@ function distribuirNovo() {
     `;
     toast(`Processo criado · remetido a ${setorInicial}`);
   } else {
-    const aviso = (distInfo && distInfo.modo === 'suplencia')
-      ? '<br><strong style="color:var(--vermelho-alerta);">⚠ Todos os primários estão no limiar — Matheus acionado como suplente.</strong>'
-      : '';
+    let aviso = '';
+    if (distInfo && distInfo.modo === 'suplencia') {
+      aviso = '<br><strong style="color:var(--vermelho-alerta);">⚠ Todos os primários estão no limiar — Matheus acionado como suplente.</strong>';
+    } else if (distInfo && distInfo.modo === 'suplencia_ausencia') {
+      aviso = '<br><strong style="color:var(--vermelho-alerta);">⚠ Todos os servidores primários estão em ausência legal — Matheus acionado como suplente.</strong>';
+    }
     painel.innerHTML = `
       <div class="resultado-distribuicao">
         Processo <strong>${sei}</strong> distribuído para <strong>${servidorAtribuido}</strong>.<br>
@@ -2206,6 +2381,10 @@ function distribuirProcessoExistente(id) {
     if (!confirm(`Processo está em status "${statusInfo}", não em elaboração na COAG. Distribuir mesmo assim?`)) return;
   }
   const dist = escolherServidor();
+  if (!dist.servidor) {
+    toast('Nenhum servidor disponível — todos os primários e Matheus estão em ausência legal', true);
+    return;
+  }
   const anterior = p.servidorElaboracao;
   p.servidorElaboracao = dist.servidor;
   p.ultimaAtualizacao = Date.now();
@@ -2491,7 +2670,7 @@ function abrirEdicao(id) {
         <select id="edit-servidor">
           <option value="">— Sem coordenador definido —</option>
           ${candidatosCoord.map(f =>
-            `<option value="${f}" ${p.servidorElaboracao === f ? 'selected' : ''}>${f}</option>`).join('')}
+            `<option value="${f}" ${p.servidorElaboracao === f ? 'selected' : ''}>${f}${servidorAusente(f) ? ' (ausente)' : ''}</option>`).join('')}
         </select>
       </div>
       <div>
@@ -3137,6 +3316,7 @@ function inserirExemplos() {
   exemplos.forEach((ex, idx) => {
     const calc = calcularSCT(ex.tipo, ex.dim);
     const dist = escolherServidor();
+    if (!dist.servidor) return; // todos ausentes — pula exemplo
     const ts = agora + idx;
     const proc = {
       id: uuid(),
@@ -3199,9 +3379,15 @@ function atualizarPrecalculo() {
     const cargasPrimarios = {};
     SERVIDORES_PRIMARIOS.forEach(f => cargasPrimarios[f] = somaSCTAtiva(f));
     const previa = escolherServidor();
-    texto += `<br>Previsão de distribuição: <strong>${previa.servidor}</strong>`;
-    if (previa.modo === 'suplencia') texto += ' <span style="color:var(--vermelho-alerta);">(suplência ativa)</span>';
-    texto += `<br><small style="color:var(--tinta-suave);">Cargas atuais: ${SERVIDORES_PRIMARIOS.map(f => `${f} ${cargasPrimarios[f].toFixed(1)}`).join(' · ')}</small>`;
+    if (previa.servidor) {
+      texto += `<br>Previsão de distribuição: <strong>${previa.servidor}</strong>`;
+      if (previa.modo === 'suplencia') texto += ' <span style="color:var(--vermelho-alerta);">(suplência ativa)</span>';
+      if (previa.modo === 'suplencia_ausencia') texto += ' <span style="color:var(--vermelho-alerta);">(primários em ausência legal)</span>';
+    } else {
+      texto += '<br><strong style="color:var(--vermelho-alerta);">⚠ Nenhum servidor disponível — todos em ausência legal</strong>';
+    }
+    const marcaAusente = f => servidorAusente(f) ? ' (ausente)' : '';
+    texto += `<br><small style="color:var(--tinta-suave);">Cargas atuais: ${SERVIDORES_PRIMARIOS.map(f => `${f}${marcaAusente(f)} ${cargasPrimarios[f].toFixed(1)}`).join(' · ')}</small>`;
   }
   document.getElementById('precalculo').innerHTML = texto;
 }
@@ -4113,6 +4299,7 @@ function renderTudo() {
   renderDashboard();
   renderProcessos();
   renderFilas();
+  renderAusencias();
   atualizarPrecalculo();
   atualizarInfoBackupXLSX();
 }
@@ -4123,6 +4310,7 @@ function renderTudo() {
 document.addEventListener('DOMContentLoaded', async () => {
   carregar();
   preencherFiltroServidor();
+  preencherSelectsAusencia();
   carregarConfigUI();
   renderTudo();
 
@@ -4202,6 +4390,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('modal-edicao').addEventListener('click', e => {
     if (e.target.id === 'modal-edicao') fecharEdicao();
   });
+
+  document.getElementById('btn-registrar-ausencia').addEventListener('click', registrarAusencia);
 
   document.getElementById('btn-salvar-config').addEventListener('click', salvarConfig);
   document.getElementById('btn-export-json').addEventListener('click', exportarJSON);
